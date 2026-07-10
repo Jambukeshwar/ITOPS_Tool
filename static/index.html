@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aria ITOps Portal — Prodapt Puerto Rico</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1rem}
+.login-card{background:#1a202c;border:0.5px solid #2d3748;border-radius:16px;padding:2rem;width:100%;max-width:380px}
+.login-logo{width:44px;height:44px;background:#1a73e8;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;font-weight:700;margin:0 auto 1rem}
+.login-title{text-align:center;font-size:18px;font-weight:500;margin-bottom:4px}
+.login-sub{text-align:center;font-size:12px;color:#718096;margin-bottom:1.5rem}
+.login-err{background:#2d1a1a;border:0.5px solid #c53030;border-radius:8px;padding:10px 12px;font-size:12px;color:#fc8181;margin-bottom:1rem;display:none}
+.app-shell{display:none;flex-direction:column;min-height:100vh}
+.topbar{background:#1a202c;border-bottom:0.5px solid #2d3748;padding:0 1.5rem;display:flex;align-items:center;gap:12px;height:52px;flex-shrink:0}
+.topbar-logo{width:28px;height:28px;background:#1a73e8;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700}
+.topbar-title{font-size:14px;font-weight:500}
+.topbar-user{margin-left:auto;font-size:12px;color:#718096;display:flex;align-items:center;gap:12px}
+.logout-btn{background:transparent;border:0.5px solid #4a5568;color:#a0aec0;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer}
+.nav{background:#1a202c;border-bottom:0.5px solid #2d3748;padding:0 1.5rem;display:flex;gap:4px}
+.nav-tab{padding:12px 18px;border:none;background:transparent;color:#718096;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;position:relative;top:1px}
+.nav-tab.active{color:#63b3ed;border-bottom-color:#1a73e8}
+.nav-tab:hover:not(.active){color:#a0aec0}
+.nav-tab.disabled{opacity:0.4;cursor:not-allowed}
+.nav-badge{font-size:10px;background:#2d3748;color:#718096;border-radius:4px;padding:1px 6px;margin-left:6px}
+.pages{flex:1;overflow-y:auto}
+.page{display:none;padding:1.5rem;max-width:1100px;margin:0 auto}
+.page.active{display:block}
+.card{background:#1a202c;border:0.5px solid #2d3748;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.slabel{font-size:11px;color:#718096;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px}
+.field{margin-bottom:1rem}
+label{display:block;font-size:12px;color:#a0aec0;margin-bottom:5px;font-weight:500}
+input,textarea{width:100%;background:#0f1117;border:0.5px solid #2d3748;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:13px;outline:none;font-family:inherit}
+input:focus,textarea:focus{border-color:#4a5568}
+input[readonly]{color:#718096;cursor:default}
+textarea{resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{width:100%;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:500;cursor:pointer;margin-top:0.25rem;transition:all 0.2s;display:block}
+.btn-primary{background:#1a73e8;color:#fff}.btn-primary:hover{background:#1557b0}
+.btn-danger{background:#c53030;color:#fff}.btn-danger:hover{background:#9b2c2c}
+.btn-secondary{background:#2d3748;color:#e2e8f0;border:0.5px solid #4a5568}.btn-secondary:hover{background:#3a4556}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.mode-toggle{display:flex;gap:6px;margin-bottom:1rem}
+.mtgl{flex:1;padding:8px;border:0.5px solid #2d3748;border-radius:8px;background:transparent;color:#718096;font-size:12px;cursor:pointer}
+.mtgl.active{border-color:#1a73e8;color:#63b3ed;background:#1e2a3a}
+.lookup-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-bottom:1rem}
+.lbtn{padding:9px 18px;border-radius:8px;border:none;background:#2d3748;color:#e2e8f0;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;height:38px}
+.lbtn:disabled{opacity:0.5;cursor:not-allowed}
+.divider{height:0.5px;background:#2d3748;margin:1.25rem 0}
+.dcard{background:#0f1117;border:0.5px solid #2d3748;border-radius:8px;padding:12px;margin-bottom:1rem;display:none}
+.dcard.show{display:block}
+.dname{font-size:14px;font-weight:500;margin-bottom:6px}
+.dmeta{display:flex;gap:16px;flex-wrap:wrap}
+.mi{font-size:12px;color:#718096}.mi b{color:#a0aec0;font-weight:500}
+.fwarn{background:#2d1a00;border:0.5px solid #c05621;border-radius:8px;padding:10px 12px;font-size:12px;color:#f6ad55;margin-bottom:1rem;display:none}
+.fwarn.show{display:block}
+.ferr{background:#2d1a1a;border:0.5px solid #c53030;border-radius:8px;padding:10px 12px;font-size:12px;color:#fc8181;margin-bottom:1rem;display:none}
+.ferr.show{display:block}
+.rbox{border-radius:8px;padding:12px;margin-top:1rem;font-size:12px;display:none;line-height:1.6}
+.rbox.ok{background:#1c3a2a;border:0.5px solid #2f855a;color:#68d391}
+.rbox.err{background:#2d1a1a;border:0.5px solid #c53030;color:#fc8181}
+.rcode{font-family:monospace;font-size:11px;margin-top:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:6px;white-space:pre-wrap;word-break:break-all;max-height:120px;overflow-y:auto}
+.ctgl{display:flex;gap:6px;margin-bottom:1rem}
+.tgl{flex:1;padding:9px;border:0.5px solid #2d3748;border-radius:8px;background:transparent;color:#718096;font-size:13px;cursor:pointer}
+.tgl.active{border-color:#e53e3e;color:#fc8181;background:#2d1a1a}
+.abadge{font-size:10px;background:#1e2a3a;color:#63b3ed;border:0.5px solid #2a4365;border-radius:4px;padding:2px 6px;margin-left:6px;vertical-align:middle}
+.bwrap{overflow-x:auto;margin-bottom:1rem}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:8px 10px;color:#718096;font-weight:600;font-size:11px;border-bottom:0.5px solid #2d3748;background:#0f1117}
+td{padding:8px 10px;border-bottom:0.5px solid #1a202c;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr.flagrow td{background:#1a1200}
+tr.selected-row td{background:#1a2a1a !important}
+.sb{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500}
+.sp{background:#1e2a3a;color:#63b3ed}.so{background:#1c3a2a;color:#68d391}
+.se{background:#2d1a1a;color:#fc8181}.sw{background:#2d1a00;color:#f6ad55}
+.sl{background:#2d3748;color:#a0aec0}
+.bsum{display:flex;gap:12px;margin-bottom:1rem;flex-wrap:wrap}
+.scard{background:#0f1117;border:0.5px solid #2d3748;border-radius:8px;padding:8px 14px;font-size:12px;color:#718096}
+.scard span{font-size:16px;font-weight:500;display:block;color:#e2e8f0}
+input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
+.sel-bar{background:#1e2a3a;border:0.5px solid #2a4365;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:12px;margin-bottom:1rem;flex-wrap:wrap}
+.sel-count{font-size:12px;color:#63b3ed;font-weight:500;margin-right:auto}
+.action-btn{padding:7px 18px;border-radius:6px;border:none;font-size:12px;font-weight:500;cursor:pointer}
+.action-btn:disabled{opacity:0.4;cursor:not-allowed}
+.btn-suspend{background:#c05621;color:#fff}
+.btn-disconnect{background:#742a2a;color:#fff}
+.btn-resume{background:#276749;color:#fff}
+.btn-sf-flag{background:#1a4a8a;color:#fff}
+.btn-sf-clear{background:#2d4a6b;color:#fff}
+.sel-bar-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0}
+.footer{text-align:center;padding:1rem;font-size:11px;color:#4a5568;border-top:0.5px solid #2d3748}
+</style>
+</head>
+<body>
+
+<div class="login-wrap" id="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">A</div>
+    <div class="login-title">Aria ITOps Portal</div>
+    <div class="login-sub">Prodapt Puerto Rico INC</div>
+    <div class="login-err" id="login-err"></div>
+    <div class="field"><label>Username</label><input id="login-user" placeholder="Enter username" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input id="login-pass" type="password" placeholder="Enter password" autocomplete="current-password"></div>
+    <button class="btn btn-primary" id="login-btn" onclick="doLogin()">Sign in</button>
+  </div>
+  <div style="font-size:11px;color:#4a5568;text-align:center;padding-bottom:1rem">
+    Developed by <strong style="color:#718096">Jambukeshwaran J</strong> &nbsp;·&nbsp; Prodapt Puerto Rico INC &nbsp;·&nbsp; © 2026–2027
+  </div>
+</div>
+
+<div class="app-shell" id="app-shell">
+  <div class="topbar">
+    <div class="topbar-logo">A</div>
+    <div class="topbar-title">Aria ITOps Portal &nbsp;·&nbsp; Prodapt Puerto Rico</div>
+    <div class="topbar-user">
+      <span id="topbar-username"></span>
+      <button class="logout-btn" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+  <div class="nav">
+    <button class="nav-tab" onclick="switchPage('plan',this)">Plan Lookup</button>
+    <button class="nav-tab disabled">Device manage <span class="nav-badge">Soon</span></button>
+    <button class="nav-tab active" onclick="switchPage('credit',this)">Credit manage</button>
+    <button class="nav-tab" onclick="switchPage('account',this)">Account details</button>
+  </div>
+  <div class="pages">
+
+    <!-- PLAN LOOKUP PAGE -->
+    <div class="page" id="page-plan">
+      <div class="card">
+        <div class="slabel">Plan Lookup</div>
+        <div class="field"><label>MSISDN(s) — one per line</label><textarea id="pl-msisdns" rows="4" placeholder="7871234567&#10;7871234568"></textarea></div>
+        <button class="lbtn" id="pl-lbtn" onclick="planLookupRun()" style="width:100%;height:auto;padding:10px">Look up</button>
+        <div class="ferr" id="pl-err" style="margin-top:0.75rem"></div>
+      </div>
+      <div id="pl-table" style="display:none">
+        <div class="bsum" id="pl-bsum"></div>
+        <div class="bwrap">
+          <table>
+            <thead>
+              <tr>
+                <th>MSISDN</th>
+                <th>BAN</th>
+                <th>Acct Status</th>
+                <th>Master Plan</th>
+                <th>Plan Instance ID</th>
+                <th>Plan Name</th>
+                <th>Plan Status</th>
+                <th>Plan Status Date</th>
+                <th>Device Plan</th>
+                <th>Device Plan ID</th>
+                <th>Device Status</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Inst Status</th>
+                <th># Inst</th>
+                <th># Active</th>
+                <th>NSO Exist</th>
+                <th>Inst String</th>
+              </tr>
+            </thead>
+            <tbody id="pl-tbody"></tbody>
+          </table>
+        </div>
+        <button class="btn btn-secondary" id="pl-dlbtn" style="display:none;margin-top:8px" onclick="downloadPlanCSV()">Download results as CSV</button>
+      </div>
+    </div>
+
+    <!-- CREDIT PAGE -->
+    <div class="page active" id="page-credit">
+      <div style="display:flex;gap:4px;margin-bottom:1.5rem;background:#1a202c;border-radius:10px;padding:4px">
+        <button class="mtgl active" style="flex:1;padding:10px;font-size:13px" onclick="switchCreditTab('recurring',this)">+ Recurring credit</button>
+        <button class="mtgl" style="flex:1;padding:10px;font-size:13px" onclick="switchCreditTab('service',this)">+ Service credit</button>
+        <button class="mtgl" style="flex:1;padding:10px;font-size:13px" onclick="switchCreditTab('cancel',this)">Cancel credit</button>
+      </div>
+
+      <!-- Recurring -->
+      <div id="ct-recurring">
+        <div class="card">
+          <div class="mode-toggle">
+            <button class="mtgl active" onclick="setMode('r','single')">Single</button>
+            <button class="mtgl" onclick="setMode('r','bulk')">Bulk</button>
+          </div>
+          <div id="r-single">
+            <div class="slabel">Lookup device</div>
+            <div class="lookup-row">
+              <div class="field" style="margin:0"><label>Client plan instance ID</label><input id="r-inst-id" placeholder="e.g. 802Pl00000GgPNSIA3"></div>
+              <button class="lbtn" id="r-lbtn" onclick="lookupSingle('r')">Look up</button>
+            </div>
+            <div class="dcard" id="r-dcard">
+              <div class="dname" id="r-dname"></div>
+              <div class="dmeta">
+                <div class="mi">BAN: <b id="r-mban"></b></div>
+                <div class="mi">INST ID: <b id="r-minst"></b></div>
+                <div class="mi">Amount: <b id="r-mamt"></b></div>
+                <div class="mi">Frequency: <b id="r-mfreq"></b></div>
+                <div class="mi">Service ID: <b id="r-msvc"></b></div>
+              </div>
+            </div>
+            <div class="fwarn" id="r-flag"></div>
+            <div class="ferr" id="r-freq-flag">Frequency is 0 — cannot create recurring credit.</div>
+            <div id="r-form" style="display:none">
+              <div class="divider"></div>
+              <div class="slabel">Credit details</div>
+              <div class="row2">
+                <div class="field"><label>Monthly promotion <span class="abadge">auto</span></label><input id="r-amount" type="number" step="0.01" readonly></div>
+                <div class="field"><label>Frequency <span class="abadge">auto</span></label><input id="r-freq" type="number" readonly></div>
+              </div>
+              <div class="row2">
+                <div class="field"><label>Start date</label><input id="r-start" type="date"></div>
+                <div class="field"><label>Alt caller / ticket</label><input id="r-caller" placeholder="e.g. John Doe - TKT123"></div>
+              </div>
+              <button class="btn btn-primary" id="r-sbtn" onclick="submitSingle('r')">Submit recurring credit</button>
+              <div class="rbox" id="r-res"></div>
+            </div>
+          </div>
+          <div id="r-bulk" style="display:none">
+            <div class="slabel">Bulk lookup</div>
+            <div class="field"><label>Client plan instance IDs (one per line)</label><textarea id="r-bids" rows="5" placeholder="802Pl00000GgPNSIA3"></textarea></div>
+            <button class="lbtn" id="r-blbtn" onclick="lookupBulk('r')" style="width:100%;height:auto;padding:10px;margin-bottom:1rem">Look up all</button>
+            <div id="r-bres" style="display:none">
+              <div class="bsum" id="r-bsum"></div>
+              <div class="bwrap"><table><thead><tr><th>Instance ID</th><th>BAN</th><th>Device</th><th>Monthly promotion</th><th>Freq</th><th>Service ID</th><th>Status</th></tr></thead><tbody id="r-btbody"></tbody></table></div>
+              <div class="divider"></div>
+              <div class="row2">
+                <div class="field"><label>Start date (all)</label><input id="r-bstart" type="date"></div>
+                <div class="field"><label>Alt caller (all)</label><input id="r-bcaller" placeholder="e.g. John Doe - TKT123"></div>
+              </div>
+              <button class="btn btn-primary" id="r-bsbtn" onclick="submitBulk('r')">Submit all recurring credits</button>
+              <button class="btn btn-danger" id="r-stopbtn" style="display:none;margin-top:6px" onclick="bulkStop.r=true;this.textContent='Stopping...';this.disabled=true">Hard Stop</button>
+              <div class="rbox" id="r-bres2"></div>
+              <button class="btn btn-secondary" id="r-dlbtn" style="display:none;margin-top:8px" onclick="downloadCSV('r')">Download results as CSV</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Service -->
+      <div id="ct-service" style="display:none">
+        <div class="card">
+          <div class="mode-toggle">
+            <button class="mtgl active" onclick="setMode('s','single')">Single</button>
+            <button class="mtgl" onclick="setMode('s','bulk')">Bulk</button>
+          </div>
+          <div id="s-single">
+            <div class="slabel">Lookup device</div>
+            <div class="lookup-row">
+              <div class="field" style="margin:0"><label>Client plan instance ID</label><input id="s-inst-id" placeholder="e.g. 802Pl00000GgPNSIA3"></div>
+              <button class="lbtn" id="s-lbtn" onclick="lookupSingle('s')">Look up</button>
+            </div>
+            <div class="dcard" id="s-dcard">
+              <div class="dname" id="s-dname"></div>
+              <div class="dmeta">
+                <div class="mi">BAN: <b id="s-mban"></b></div>
+                <div class="mi">INST ID: <b id="s-minst"></b></div>
+                <div class="mi">Amount: <b id="s-mamt"></b></div>
+                <div class="mi">Frequency: <b id="s-mfreq">1 (fixed)</b></div>
+                <div class="mi">Service ID: <b id="s-msvc"></b></div>
+              </div>
+            </div>
+            <div class="fwarn" id="s-flag"></div>
+            <div class="ferr" id="s-freq-flag">Frequency is 0 — cannot create service credit.</div>
+            <div id="s-form" style="display:none">
+              <div class="divider"></div>
+              <div class="slabel">Credit details</div>
+              <div class="row2">
+                <div class="field"><label>Monthly promotion <span class="abadge">auto</span></label><input id="s-amount" type="number" step="0.01" readonly></div>
+                <div class="field"><label>Frequency <span class="abadge">fixed = 1</span></label><input value="1" readonly></div>
+              </div>
+              <div class="row2">
+                <div class="field"><label>Start date</label><input id="s-start" type="date"></div>
+                <div class="field"><label>Alt caller / ticket</label><input id="s-caller" placeholder="e.g. John Doe - TKT123"></div>
+              </div>
+              <button class="btn btn-primary" id="s-sbtn" onclick="submitSingle('s')">Submit service credit</button>
+              <div class="rbox" id="s-res"></div>
+            </div>
+          </div>
+          <div id="s-bulk" style="display:none">
+            <div class="slabel">Bulk lookup</div>
+            <div class="field"><label>Client plan instance IDs (one per line)</label><textarea id="s-bids" rows="5" placeholder="802Pl00000GgPNSIA3"></textarea></div>
+            <button class="lbtn" id="s-blbtn" onclick="lookupBulk('s')" style="width:100%;height:auto;padding:10px;margin-bottom:1rem">Look up all</button>
+            <div id="s-bres" style="display:none">
+              <div class="bsum" id="s-bsum"></div>
+              <div class="bwrap"><table><thead><tr><th>Instance ID</th><th>BAN</th><th>Device</th><th>Monthly promotion</th><th>Freq</th><th>Service ID</th><th>Status</th></tr></thead><tbody id="s-btbody"></tbody></table></div>
+              <div class="divider"></div>
+              <div class="row2">
+                <div class="field"><label>Start date (all)</label><input id="s-bstart" type="date"></div>
+                <div class="field"><label>Alt caller (all)</label><input id="s-bcaller" placeholder="e.g. John Doe - TKT123"></div>
+              </div>
+              <button class="btn btn-primary" id="s-bsbtn" onclick="submitBulk('s')">Submit all service credits</button>
+              <button class="btn btn-danger" id="s-stopbtn" style="display:none;margin-top:6px" onclick="bulkStop.s=true;this.textContent='Stopping...';this.disabled=true">Hard Stop</button>
+              <div class="rbox" id="s-bres2"></div>
+              <button class="btn btn-secondary" id="s-dlbtn" style="display:none;margin-top:8px" onclick="downloadCSV('s')">Download results as CSV</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cancel -->
+      <div id="ct-cancel" style="display:none">
+        <div class="card">
+          <div class="slabel">Cancel credit</div>
+          <div class="ctgl">
+            <button class="tgl active" id="tgl-sc" onclick="setCancelType('sc')">Service credit</button>
+            <button class="tgl" id="tgl-rc" onclick="setCancelType('rc')">Recurring credit</button>
+          </div>
+          <div id="sc-sec">
+            <div class="mode-toggle">
+              <button class="mtgl active" onclick="setCancelMode('sc','single')">Single</button>
+              <button class="mtgl" onclick="setCancelMode('sc','bulk')">Bulk</button>
+            </div>
+            <div id="sc-single">
+              <div class="row2">
+                <div class="field"><label>BAN</label><input id="sc-acct" placeholder="e.g. LLAPR-100123456"></div>
+                <div class="field"><label>SCID</label><input id="sc-id" placeholder="e.g. 100001"></div>
+              </div>
+              <div class="field"><label>Alt caller</label><input id="sc-caller" placeholder="e.g. Jane Smith - TKT456"></div>
+              <button class="btn btn-danger" onclick="submitCancelSingle('sc')">Cancel service credit</button>
+              <div class="rbox" id="sc-res"></div>
+            </div>
+            <div id="sc-bulk" style="display:none">
+              <div class="field"><label>Alt caller (all)</label><input id="sc-bcaller" placeholder="e.g. Jane Smith - TKT456"></div>
+              <div class="field"><label>BAN,SCID — one per line</label><textarea id="sc-bids" rows="6" placeholder="LLAPR-100123456,100001"></textarea></div>
+              <button class="lbtn" id="sc-bsbtn" onclick="submitCancelBulk('sc')" style="width:100%;height:auto;padding:10px;margin-bottom:1rem;background:#c53030;color:#fff">Cancel all service credits</button>
+              <div id="sc-btable" style="display:none">
+                <div class="bwrap"><table><thead><tr><th>BAN</th><th>SCID</th><th>Status</th></tr></thead><tbody id="sc-btbody"></tbody></table></div>
+                <div class="rbox" id="sc-bres"></div>
+                <button class="btn btn-secondary" id="sc-dlbtn" style="display:none;margin-top:8px" onclick="downloadCancelCSV('sc')">Download results as CSV</button>
+              </div>
+            </div>
+          </div>
+          <div id="rc-sec" style="display:none">
+            <div class="mode-toggle">
+              <button class="mtgl active" onclick="setCancelMode('rc','single')">Single</button>
+              <button class="mtgl" onclick="setCancelMode('rc','bulk')">Bulk</button>
+            </div>
+            <div id="rc-single">
+              <div class="row2">
+                <div class="field"><label>BAN</label><input id="rc-acct" placeholder="e.g. LLAPR-100123456"></div>
+                <div class="field"><label>RCID</label><input id="rc-id" placeholder="e.g. 200001"></div>
+              </div>
+              <div class="field"><label>Alt caller</label><input id="rc-caller" placeholder="e.g. Jane Smith - TKT456"></div>
+              <button class="btn btn-danger" onclick="submitCancelSingle('rc')">Cancel recurring credit</button>
+              <div class="rbox" id="rc-res"></div>
+            </div>
+            <div id="rc-bulk" style="display:none">
+              <div class="field"><label>Alt caller (all)</label><input id="rc-bcaller" placeholder="e.g. Jane Smith - TKT456"></div>
+              <div class="field"><label>BAN,RCID — one per line</label><textarea id="rc-bids" rows="6" placeholder="LLAPR-100123456,200001"></textarea></div>
+              <button class="lbtn" id="rc-bsbtn" onclick="submitCancelBulk('rc')" style="width:100%;height:auto;padding:10px;margin-bottom:1rem;background:#c53030;color:#fff">Cancel all recurring credits</button>
+              <div id="rc-btable" style="display:none">
+                <div class="bwrap"><table><thead><tr><th>BAN</th><th>RCID</th><th>Status</th></tr></thead><tbody id="rc-btbody"></tbody></table></div>
+                <div class="rbox" id="rc-bres"></div>
+                <button class="btn btn-secondary" id="rc-dlbtn" style="display:none;margin-top:8px" onclick="downloadCancelCSV('rc')">Download results as CSV</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACCOUNT PAGE -->
+    <div class="page" id="page-account">
+      <div class="card">
+        <div class="slabel">Bulk account lookup</div>
+        <div class="field"><label>BAN / Client account IDs (one per line)</label><textarea id="acct-bids" rows="5" placeholder="21049966-20049962&#10;21049967-20049963"></textarea></div>
+        <button class="lbtn" id="acct-blbtn" onclick="lookupAccountBulk()" style="width:100%;height:auto;padding:10px;margin-bottom:1rem">Look up all</button>
+        <div id="acct-btable" style="display:none">
+          <div class="bsum" id="acct-bsum"></div>
+          <div class="sel-bar" id="sel-bar" style="flex-direction:column;align-items:flex-start">
+            <div class="sel-bar-row">
+              <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:#a0aec0;cursor:pointer">
+                <input type="checkbox" id="chk-all" onchange="toggleSelectAll(this.checked)"> Select all
+              </label>
+              <span class="sel-count" id="sel-count">0 selected</span>
+            </div>
+            <div class="sel-bar-row">
+              <span style="font-size:11px;color:#718096;min-width:60px">Aria</span>
+              <div class="field" style="margin:0;min-width:240px">
+                <input id="bulk-dun-caller" placeholder="Alt caller / ticket (required)" style="padding:6px 10px;font-size:12px">
+              </div>
+              <button class="action-btn btn-suspend" id="btn-sel-suspend" onclick="applyToSelected('suspend')" disabled>Suspend Selected</button>
+              <button class="action-btn btn-disconnect" id="btn-sel-disconnect" onclick="applyToSelected('disconnect')" disabled>Disconnect Selected</button>
+              <button class="action-btn btn-resume" id="btn-sel-resume" onclick="applyToSelected('resume')" disabled>Resume Selected</button>
+            </div>
+            <div class="sel-bar-row">
+              <span style="font-size:11px;color:#718096;min-width:60px">Salesforce</span>
+              <div class="field" style="margin:0;min-width:260px">
+                <input id="sf-token" placeholder="SF session token (required)" style="padding:6px 10px;font-size:12px" title="Paste Salesforce sid cookie value">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;min-width:220px">
+                <label style="font-size:10px;color:#718096;margin:0">Fraud Reason</label>
+                <input id="sf-fraud-reason" placeholder="e.g. Billing Suspend" style="padding:6px 10px;font-size:12px">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;min-width:220px">
+                <label style="font-size:10px;color:#718096;margin:0">Name</label>
+                <input id="sf-ci-name" placeholder="e.g. RED FLAG added by Billing team" style="padding:6px 10px;font-size:12px">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;min-width:180px">
+                <label style="font-size:10px;color:#718096;margin:0">Notes</label>
+                <input id="sf-ci-notes" placeholder="Customer Story" style="padding:6px 10px;font-size:12px">
+              </div>
+              <button class="action-btn btn-sf-flag" id="btn-sf-flag" onclick="applyToSelectedSF(true)" disabled>Set Redflag</button>
+              <button class="action-btn btn-sf-clear" id="btn-sf-clear" onclick="applyToSelectedSF(false)" disabled>Clear Redflag</button>
+            </div>
+          </div>
+          <div class="bwrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:32px"></th>
+                  <th>BAN</th>
+                  <th>Status</th>
+                  <th>Cur.Bal</th>
+                  <th>Tot.Bal</th>
+                  <th>Dunning ID</th>
+                  <th>Dunning</th>
+                  <th>Step</th>
+                  <th title="Step at which suspend triggers">Susp@</th>
+                  <th title="Step at which disconnect triggers">Disc@</th>
+                  <th>Degrade</th>
+                  <th>Pay Status</th>
+                  <th>Pay Amt</th>
+                  <th>Pay Date</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="acct-btbody"></tbody>
+            </table>
+          </div>
+          <div class="rbox" id="acct-bulk-dun-res"></div>
+          <div class="rbox" id="acct-bres"></div>
+          <button class="btn btn-secondary" id="acct-dlbtn" style="display:none;margin-top:8px" onclick="downloadAccountCSV()">Download results as CSV</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="footer">Developed by <strong>Jambukeshwaran J</strong> &nbsp;·&nbsp; Prodapt Puerto Rico INC &nbsp;·&nbsp; © 2026–2027</div>
+</div>
+
+<script>
+var API = "http://localhost:8002";
+var today = new Date().toISOString().split('T')[0];
+var cancelType = 'sc';
+var deviceData = {r:null,s:null};
+var bulkData = {r:[],s:[]};
+var bulkCallerStart = {r:{caller:'',start:''},s:{caller:'',start:''}};
+var acctBulkResults = [];
+var bulkStop = {r:false,s:false};
+var selectedBANs = new Set();
+var planResults = [];
+
+var DUNNING_STEPS = {
+  "Low_Risk_ACH_15":{suspend:10,final_suspend:14,disconnect:15},
+  "Low_Risk_ACH_5":{suspend:12,final_suspend:16,disconnect:17},
+  "Low_Risk_Credit_Card_15":{suspend:12,final_suspend:16,disconnect:17},
+  "Low_Risk_Net_Terms":{suspend:9,final_suspend:13,disconnect:14},
+  "Medium_Risk_ACH_15":{suspend:9,final_suspend:14,disconnect:15},
+  "Medium_Risk_ACH_5":{suspend:11,final_suspend:16,disconnect:17},
+  "Medium_Risk_Credit_Card_15":{suspend:11,final_suspend:16,disconnect:17},
+  "Medium_Risk_Net_Terms":{suspend:8,final_suspend:13,disconnect:14},
+  "High_Risk_ACH_15":{suspend:8,final_suspend:13,disconnect:14},
+  "High_Risk_ACH_5":{suspend:10,final_suspend:15,disconnect:16},
+  "High_Risk_Credit_Card_15":{suspend:10,final_suspend:15,disconnect:16},
+  "High_Risk_Net_Terms":{suspend:6,final_suspend:11,disconnect:12}
+};
+
+window.addEventListener('DOMContentLoaded',function(){
+  fetch(API+'/api/me',{credentials:'include'}).then(function(r){
+    if(r.ok) return r.json(); throw new Error('not logged in');
+  }).then(function(d){showApp(d.username);})
+  .catch(function(){document.getElementById('login-wrap').style.display='flex';});
+  document.getElementById('login-pass').addEventListener('keydown',function(e){if(e.key==='Enter') doLogin();});
+});
+
+function doLogin(){
+  var user=document.getElementById('login-user').value.trim();
+  var pass=document.getElementById('login-pass').value.trim();
+  var btn=document.getElementById('login-btn');
+  if(!user||!pass){showLoginErr('Enter username and password.');return;}
+  btn.disabled=true;btn.textContent='Signing in...';
+  fetch(API+'/api/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})})
+  .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+  .then(function(res){
+    if(!res.ok){showLoginErr(res.d.detail||'Login failed.');btn.disabled=false;btn.textContent='Sign in';return;}
+    showApp(res.d.username);
+  }).catch(function(e){showLoginErr(e.message);btn.disabled=false;btn.textContent='Sign in';});
+}
+
+function showLoginErr(msg){var el=document.getElementById('login-err');el.textContent=msg;el.style.display='block';}
+
+function showApp(username){
+  document.getElementById('login-wrap').style.display='none';
+  document.getElementById('app-shell').style.display='flex';
+  document.getElementById('topbar-username').textContent=username;
+}
+
+function doLogout(){
+  fetch(API+'/api/logout',{method:'POST',credentials:'include'}).finally(function(){
+    document.getElementById('app-shell').style.display='none';
+    document.getElementById('login-wrap').style.display='flex';
+    document.getElementById('login-user').value='';
+    document.getElementById('login-pass').value='';
+    document.getElementById('login-err').style.display='none';
+  });
+}
+
+function switchPage(name,btn){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+}
+
+function switchCreditTab(name,btn){
+  ['recurring','service','cancel'].forEach(function(n){document.getElementById('ct-'+n).style.display=n===name?'block':'none';});
+  btn.parentElement.querySelectorAll('.mtgl').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+}
+
+function setMode(pfx,mode){
+  var card=document.getElementById('ct-'+(pfx==='r'?'recurring':'service'));
+  var btns=card.querySelectorAll('.mode-toggle .mtgl');
+  btns[0].classList.toggle('active',mode==='single');
+  btns[1].classList.toggle('active',mode==='bulk');
+  document.getElementById(pfx+'-single').style.display=mode==='single'?'block':'none';
+  document.getElementById(pfx+'-bulk').style.display=mode==='bulk'?'block':'none';
+}
+
+function setCancelType(t){
+  cancelType=t;
+  document.getElementById('tgl-sc').classList.toggle('active',t==='sc');
+  document.getElementById('tgl-rc').classList.toggle('active',t==='rc');
+  document.getElementById('sc-sec').style.display=t==='sc'?'block':'none';
+  document.getElementById('rc-sec').style.display=t==='rc'?'block':'none';
+}
+
+function setCancelMode(type,mode){
+  var btns=document.querySelectorAll('#'+type+'-sec .mode-toggle .mtgl');
+  btns[0].classList.toggle('active',mode==='single');
+  btns[1].classList.toggle('active',mode==='bulk');
+  document.getElementById(type+'-single').style.display=mode==='single'?'block':'none';
+  document.getElementById(type+'-bulk').style.display=mode==='bulk'?'block':'none';
+}
+
+function showResult(id,ok,msg,raw,extra){
+  var el=document.getElementById(id);
+  el.className='rbox '+(ok?'ok':'err');
+  el.style.display='block';
+  el.innerHTML='<strong>'+(ok?'Success':'Error')+'</strong> — '+msg+(extra?' &nbsp;·&nbsp; '+extra:'')+'<div class="rcode">'+JSON.stringify(raw,null,2)+'</div>';
+}
+
+function extraIds(data){
+  if(!data||(data.error_code!==0&&data.error_code!=='0')) return '';
+  var parts=[];
+  if(data.credit_id) parts.push('Credit ID: <strong>'+data.credit_id+'</strong>');
+  if(data.recurring_credit_no) parts.push('RC #: <strong>'+data.recurring_credit_no+'</strong>');
+  return parts.join(' &nbsp;·&nbsp; ');
+}
+
+function apiFetch(path,body){
+  return fetch(API+path,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  .then(function(r){
+    if(r.status===401){doLogout();throw new Error('Session expired.');}
+    return r.json().then(function(d){if(!r.ok) throw new Error(d.detail||('HTTP '+r.status));return d;});
+  });
+}
+
+function triggerDownload(content,filename){
+  var blob=new Blob([content],{type:'text/csv'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;a.click();
+}
+
+function isBadValue(v){return v===0||v===null||v===undefined||v===''||v==='0'||isNaN(v);}
+
+function toggleSelectAll(checked){
+  selectedBANs.clear();
+  document.querySelectorAll('.row-chk').forEach(function(chk){
+    chk.checked=checked;
+    var ban=chk.dataset.ban;
+    var tr=document.getElementById('acct-row-'+ban);
+    if(checked){selectedBANs.add(ban);if(tr) tr.classList.add('selected-row');}
+    else{if(tr) tr.classList.remove('selected-row');}
+  });
+  updateSelBar();
+}
+
+function toggleRowCheck(ban,checked){
+  var tr=document.getElementById('acct-row-'+ban);
+  if(checked){selectedBANs.add(ban);if(tr) tr.classList.add('selected-row');}
+  else{selectedBANs.delete(ban);if(tr) tr.classList.remove('selected-row');}
+  var all=document.querySelectorAll('.row-chk');
+  var allChecked=Array.from(all).every(function(c){return c.checked;});
+  document.getElementById('chk-all').checked=allChecked&&all.length>0;
+  updateSelBar();
+}
+
+function updateSelBar(){
+  var n=selectedBANs.size;
+  document.getElementById('sel-count').textContent=n+' selected';
+  document.getElementById('btn-sel-suspend').disabled=n===0;
+  document.getElementById('btn-sel-disconnect').disabled=n===0;
+  document.getElementById('btn-sel-resume').disabled=n===0;
+  document.getElementById('btn-sf-flag').disabled=n===0;
+  document.getElementById('btn-sf-clear').disabled=n===0;
+}
+
+function applyToSelected(action){
+  if(selectedBANs.size===0) return;
+  var caller=document.getElementById('bulk-dun-caller').value.trim();
+  if(!caller){alert('Enter an alt caller / ticket first.');return;}
+  var labels={suspend:'Suspend',disconnect:'Disconnect',resume:'Resume'};
+  if(!confirm('Apply '+labels[action]+' to '+selectedBANs.size+' selected account(s)?')) return;
+  var toProcess=Array.from(selectedBANs);
+  var success=0,failed=0,done=0;
+  toProcess.forEach(function(ban){
+    var d=acctBulkResults.find(function(r){return r.client_acct_id===ban;});
+    if(!d||!d.success){
+      failed++;done++;
+      markRowAction(ban,'Error','se');
+      if(done===toProcess.length) showResult('acct-bulk-dun-res',failed===0,success+' '+labels[action]+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+      return;
+    }
+    var endpoint=action==='resume'?'/api/resume-dunning':'/api/update-dunning';
+    var body=action==='resume'?{client_acct_id:ban,alt_caller_id:caller}:{client_acct_id:ban,action:action,alt_caller_id:caller,dunning_process_id:d.dunning_process_id};
+    apiFetch(endpoint,body)
+    .then(function(data){
+      var ok=data.error_code===0||data.error_code==='0';
+      ok?success++:failed++;
+      markRowAction(ban,ok?labels[action]+' Done':'Error',ok?'so':'se');
+    }).catch(function(){
+      failed++;
+      markRowAction(ban,'Error','se');
+    }).finally(function(){
+      done++;
+      if(done===toProcess.length)
+        showResult('acct-bulk-dun-res',failed===0,success+' '+labels[action]+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+    });
+  });
+}
+
+function applyToSelectedSF(flag){
+  if(selectedBANs.size===0) return;
+  var sfToken=document.getElementById('sf-token').value.trim();
+  if(!sfToken){alert('Enter a Salesforce session token first.');return;}
+  var fraudReason=document.getElementById('sf-fraud-reason').value.trim();
+  var ciName=document.getElementById('sf-ci-name').value.trim();
+  var ciNotes=document.getElementById('sf-ci-notes').value.trim();
+  if(!fraudReason){alert('Enter a Fraud Reason.');return;}
+  if(!ciName){alert('Enter a Story name.');return;}
+  if(!ciNotes){alert('Enter Notes.');return;}
+  var label=flag?'Set Redflag':'Clear Redflag';
+  if(!confirm(label+' on '+selectedBANs.size+' selected account(s) in Salesforce?')) return;
+  var toProcess=Array.from(selectedBANs);
+  var success=0,failed=0,done=0;
+  toProcess.forEach(function(ban){
+    var body={client_acct_id:ban,flag:flag,sf_token:sfToken,fraud_reason:fraudReason,ci_name:ciName,ci_notes:ciNotes};
+    fetch(API+'/api/sf-update-flag',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json().then(function(d){return{status:r.status,data:d};});})
+    .then(function(res){
+      if(res.status===401&&res.data.detail&&res.data.detail.indexOf('Salesforce')!==-1){
+        failed++;markRowAction(ban,'SF Token Expired','se');return;
+      }
+      res.data.success?success++:failed++;
+      markRowAction(ban,res.data.success?label+' ✓':(res.data.detail||label+' ✗'),res.data.success?'so':'se');
+    }).catch(function(){
+      failed++;
+      markRowAction(ban,label+' ✗','se');
+    }).finally(function(){
+      done++;
+      if(done===toProcess.length)
+        showResult('acct-bulk-dun-res',failed===0,success+' '+label+(failed?', '+failed+' failed.':' done.'),{success:success,failed:failed});
+    });
+  });
+}
+
+function markRowAction(ban,text,cls){
+  var tr=document.getElementById('acct-row-'+ban);
+  if(tr){var ac=tr.querySelector('.action-cell');if(ac) ac.innerHTML='<span class="sb '+cls+'">'+text+'</span>';}
+}
+
+function lookupAccountBulk(){
+  var ids=document.getElementById('acct-bids').value.trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  if(!ids.length) return;
+  var btn=document.getElementById('acct-blbtn');
+  btn.disabled=true;btn.textContent='Looking up...';
+  acctBulkResults=[];
+  selectedBANs.clear();
+  document.getElementById('chk-all').checked=false;
+  updateSelBar();
+  var tbody=document.getElementById('acct-btbody');
+  tbody.innerHTML='';
+  document.getElementById('acct-btable').style.display='block';
+  document.getElementById('acct-dlbtn').style.display='none';
+  document.getElementById('acct-bulk-dun-res').style.display='none';
+  document.getElementById('acct-bres').style.display='none';
+  ids.forEach(function(id){
+    var tr=document.createElement('tr');tr.id='acct-row-'+id;
+    tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="11"><span class="sb sl">Loading...</span></td>';
+    tbody.appendChild(tr);
+  });
+
+  var total=ids.length, ok=0, err=0, done=0;
+  document.getElementById('acct-bsum').innerHTML=
+    '<div class="scard"><span>'+total+'</span>Total</div>'
+    +'<div class="scard"><span style="color:#68d391">'+ok+'</span>Success</div>'
+    +'<div class="scard"><span style="color:#fc8181">'+err+'</span>Errors</div>';
+
+  function renderRow(id, d){
+    var tr=document.getElementById('acct-row-'+id);
+    if(d && !d.error_code && d.client_acct_id){
+      ok++;acctBulkResults.push(Object.assign({success:true},d));
+      var sc=d.account_status==='Active'?'color:#68d391':'color:#fc8181';
+      var dc=d.dunning_status==='None'?'color:#68d391':d.dunning_status==='In Progress'?'color:#f6ad55':'color:#a0aec0';
+      var currentStep=parseInt(d.dunning_step)||0;
+      var steps=DUNNING_STEPS[d.dunning_process_id];
+      var suspendPast=steps&&currentStep>=steps.suspend;
+      var disconnectPast=steps&&currentStep>=steps.disconnect;
+      var stepColor=disconnectPast?'color:#fc8181':suspendPast?'color:#f6ad55':'color:#e2e8f0';
+      var stepSuffix=disconnectPast?' <span style="font-size:10px;color:#fc8181">(disc past)</span>':suspendPast?' <span style="font-size:10px;color:#f6ad55">(susp past)</span>':'';
+      var rowBg=disconnectPast?'background:#2d1a1a':suspendPast?'background:#2d1a00':'';
+      var suspStep=steps?steps.suspend:'N/A';
+      var discStep=steps?steps.disconnect:'N/A';
+      var suspStepColor=steps&&currentStep>=steps.suspend?'color:#f6ad55':'color:#a0aec0';
+      var discStepColor=steps&&currentStep>=steps.disconnect?'color:#fc8181':'color:#a0aec0';
+      tr.setAttribute('style',rowBg);
+      tr.innerHTML=
+        '<td><input type="checkbox" class="row-chk" data-ban="'+id+'" onchange="toggleRowCheck(\''+id+'\',this.checked)"></td>'
+        +'<td style="font-family:monospace;font-size:11px">'+id+'</td>'
+        +'<td style="'+sc+'">'+d.account_status+'</td>'
+        +'<td>$'+parseFloat(d.current_balance_due||0).toFixed(2)+'</td>'
+        +'<td>$'+parseFloat(d.total_balance_due||0).toFixed(2)+'</td>'
+        +'<td style="font-size:11px">'+(d.dunning_process_id||'N/A')+'</td>'
+        +'<td style="'+dc+'">'+d.dunning_status+'</td>'
+        +'<td style="'+stepColor+'">'+d.dunning_step+stepSuffix+'</td>'
+        +'<td style="'+suspStepColor+'">'+suspStep+'</td>'
+        +'<td style="'+discStepColor+'">'+discStep+'</td>'
+        +'<td>'+d.dunning_degrade_date+'</td>'
+        +'<td>'+d.payment_status+'</td>'
+        +'<td>'+(d.payment_amount!=='N/A'?'$'+parseFloat(d.payment_amount||0).toFixed(2):'N/A')+'</td>'
+        +'<td>'+d.payment_date+'</td>'
+        +'<td class="action-cell"><span class="sb sl">—</span></td>';
+    } else {
+      var errMsg=(d&&(d.detail||d.error))||'Error';
+      err++;acctBulkResults.push({client_acct_id:id,success:false,error:errMsg});
+      tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="11" style="color:#fc8181">'+errMsg+'</td>';
+    }
+    done++;
+    document.getElementById('acct-bsum').innerHTML=
+      '<div class="scard"><span>'+total+'</span>Total</div>'
+      +'<div class="scard"><span style="color:#68d391">'+ok+'</span>Success</div>'
+      +'<div class="scard"><span style="color:#fc8181">'+err+'</span>Errors</div>';
+    if(done===total){
+      showResult('acct-bres',err===0,ok+' accounts loaded'+(err?', '+err+' failed.':'.'),{success:ok,failed:err});
+      document.getElementById('acct-dlbtn').style.display='block';
+      btn.disabled=false;btn.textContent='Look up all';
+    }
+  }
+
+  // Process with concurrency pool of 3
+  var idx=0;
+  function runNext(){
+    if(idx>=ids.length) return;
+    var id=ids[idx++];
+    fetch(API+'/api/account-details',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_acct_id:id})})
+      .then(function(r){return r.json().then(function(data){return{ok:r.ok,data:data};});})
+      .then(function(res){renderRow(id, res.ok?res.data:{error:res.data.detail||'Error'});})
+      .catch(function(e){renderRow(id,{error:e.message});})
+      .finally(runNext);
+  }
+  for(var i=0;i<Math.min(3,ids.length);i++) runNext();
+}
+
+function downloadAccountCSV(){
+  var lines=['BAN,Account Status,Current Balance,Total Balance,Dunning Process ID,Dunning Status,Dunning Step,Suspend@,Disconnect@,Dunning Degrade Date,Payment Status,Payment Amount,Payment Date'];
+  acctBulkResults.forEach(function(d){
+    function esc(v){return'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';}
+    if(d.success===false){
+      lines.push([d.client_acct_id,'ERROR','','','','','','','','','',d.error||''].map(esc).join(','));
+    } else {
+      var s=DUNNING_STEPS[d.dunning_process_id];
+      lines.push([d.client_acct_id,d.account_status,'$'+parseFloat(d.current_balance_due||0).toFixed(2),'$'+parseFloat(d.total_balance_due||0).toFixed(2),d.dunning_process_id,d.dunning_status,d.dunning_step,s?s.suspend:'N/A',s?s.disconnect:'N/A',d.dunning_degrade_date,d.payment_status,d.payment_amount!=='N/A'?'$'+parseFloat(d.payment_amount||0).toFixed(2):'N/A',d.payment_date].map(esc).join(','));
+    }
+  });
+  triggerDownload(lines.join('\n'),'aria_account_details_'+today+'.csv');
+}
+
+function lookupSingle(pfx){
+  var instId=document.getElementById(pfx+'-inst-id').value.trim();
+  if(!instId) return;
+  var btn=document.getElementById(pfx+'-lbtn');
+  btn.disabled=true;btn.textContent='Looking up...';
+  document.getElementById(pfx+'-form').style.display='none';
+  document.getElementById(pfx+'-dcard').classList.remove('show');
+  document.getElementById(pfx+'-flag').classList.remove('show');
+  document.getElementById(pfx+'-freq-flag').classList.remove('show');
+  apiFetch('/api/lookup',{client_plan_instance_id:instId}).then(function(dev){
+    deviceData[pfx]=dev;
+    document.getElementById(pfx+'-dname').textContent=dev.device_name;
+    document.getElementById(pfx+'-mban').textContent=dev.acct_id;
+    document.getElementById(pfx+'-minst').textContent=dev.inst_id;
+    document.getElementById(pfx+'-mamt').textContent='$'+dev.amount.toFixed(2);
+    if(pfx==='r') document.getElementById(pfx+'-mfreq').textContent=dev.frequency;
+    document.getElementById(pfx+'-msvc').textContent=dev.svc_id;
+    document.getElementById(pfx+'-dcard').classList.add('show');
+    var flagEl=document.getElementById(pfx+'-flag');
+    if(isBadValue(parseFloat(dev.pos15||'0'))){flagEl.textContent='Remaining promotion is $0.00';flagEl.classList.add('show');}
+    var freqBad=pfx==='r'&&isBadValue(dev.frequency);
+    document.getElementById(pfx+'-freq-flag').classList.toggle('show',freqBad);
+    document.getElementById(pfx+'-sbtn').disabled=freqBad;
+    document.getElementById(pfx+'-amount').value=dev.amount.toFixed(2);
+    if(pfx==='r') document.getElementById(pfx+'-freq').value=dev.frequency;
+    document.getElementById(pfx+'-start').value=today;
+    document.getElementById(pfx+'-form').style.display='block';
+  }).catch(function(e){alert(e.message);})
+  .finally(function(){btn.disabled=false;btn.textContent='Look up';});
+}
+
+function submitSingle(pfx){
+  var dev=deviceData[pfx];
+  var caller=document.getElementById(pfx+'-caller').value.trim();
+  var start=document.getElementById(pfx+'-start').value.trim();
+  if(!dev||!caller||!start) return;
+  var btn=document.getElementById(pfx+'-sbtn');
+  btn.disabled=true;btn.textContent='Submitting...';
+  apiFetch('/api/create-credit',{client_plan_instance_id:dev.plan_instance_id,client_acct_id:dev.acct_id,amount:dev.amount,frequency_no:pfx==='s'?1:dev.frequency,initial_credit_date:start,inst_id:dev.inst_id,svc_id:dev.svc_id,alt_caller_id:caller})
+  .then(function(data){var ok=data.error_code===0||data.error_code==='0';showResult(pfx+'-res',ok,data.error_msg||'Done',data,extraIds(data));})
+  .catch(function(e){showResult(pfx+'-res',false,e.message,{});})
+  .finally(function(){btn.disabled=false;btn.textContent=pfx==='s'?'Submit service credit':'Submit recurring credit';});
+}
+
+function lookupBulk(pfx){
+  var ids=document.getElementById(pfx+'-bids').value.trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  if(!ids.length) return;
+  var btn=document.getElementById(pfx+'-blbtn');
+  btn.disabled=true;btn.textContent='Looking up...';
+  bulkData[pfx]=[];
+  var tbody=document.getElementById(pfx+'-btbody');
+  tbody.innerHTML='';
+  document.getElementById(pfx+'-bres').style.display='block';
+  document.getElementById(pfx+'-dlbtn').style.display='none';
+  document.getElementById(pfx+'-bstart').value=today;
+  ids.forEach(function(id){
+    var tr=document.createElement('tr');tr.id=pfx+'-row-'+id;
+    tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="sb sl">Loading</span></td>';
+    tbody.appendChild(tr);
+  });
+  var ok=0,warn=0,err=0,done=0;
+  ids.forEach(function(id){
+    apiFetch('/api/lookup',{client_plan_instance_id:id}).then(function(dev){
+      dev.instanceId=id;bulkData[pfx].push(dev);
+      var tr=document.getElementById(pfx+'-row-'+id);
+      var freqBad=pfx==='r'&&isBadValue(dev.frequency);
+      if(tr){
+        tr.className=freqBad||dev.flag?'flagrow':'';
+        tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td style="font-size:11px">'+dev.acct_id+'</td><td>'+dev.device_name+'</td><td>$'+dev.amount.toFixed(2)+'</td><td>'+(pfx==='s'?1:dev.frequency)+'</td><td style="font-size:11px">'+dev.svc_id+'</td><td><span class="sb '+(freqBad?'se':dev.flag?'sw':'sp')+'">'+(freqBad?'Freq=0':dev.flag?'Flag':'Ready')+'</span></td>';
+      }
+      freqBad||dev.flag?warn++:ok++;
+    }).catch(function(e){
+      err++;
+      var tr=document.getElementById(pfx+'-row-'+id);
+      if(tr) tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="5" style="color:#fc8181">'+e.message+'</td><td><span class="sb se">Error</span></td>';
+    }).finally(function(){
+      done++;
+      if(done===ids.length){
+        document.getElementById(pfx+'-bsum').innerHTML='<div class="scard"><span>'+ids.length+'</span>Total</div><div class="scard"><span style="color:#68d391">'+ok+'</span>Ready</div><div class="scard"><span style="color:#f6ad55">'+warn+'</span>Flagged</div><div class="scard"><span style="color:#fc8181">'+err+'</span>Errors</div>';
+        btn.disabled=false;btn.textContent='Look up all';
+      }
+    });
+  });
+}
+
+function submitBulk(pfx){
+  var devs=bulkData[pfx].filter(Boolean);
+  var caller=document.getElementById(pfx+'-bcaller').value.trim();
+  var start=document.getElementById(pfx+'-bstart').value.trim();
+  if(!devs.length||!caller||!start){showResult(pfx+'-bres2',false,'Fill all fields.',{});return;}
+  bulkCallerStart[pfx]={caller:caller,start:start};
+  bulkStop[pfx]=false;
+  var btn=document.getElementById(pfx+'-bsbtn');
+  var stopBtn=document.getElementById(pfx+'-stopbtn');
+  btn.disabled=true;btn.textContent='Submitting...';
+  stopBtn.style.display='block';stopBtn.disabled=false;stopBtn.textContent='Hard Stop';
+  var records=devs.map(function(dev){return{client_plan_instance_id:dev.plan_instance_id,client_acct_id:dev.acct_id,amount:dev.amount,frequency_no:pfx==='s'?1:dev.frequency,initial_credit_date:start,inst_id:dev.inst_id,svc_id:dev.svc_id,alt_caller_id:caller};});
+  var success=0,failed=0,stopped=0;
+  function processNext(i){
+    if(i>=records.length){
+      showResult(pfx+'-bres2',failed===0&&stopped===0,success+' submitted'+(failed?', '+failed+' failed':'')+(stopped?', '+stopped+' stopped':'')+'.', {success:success,failed:failed,stopped:stopped});
+      document.getElementById(pfx+'-dlbtn').style.display='block';
+      btn.disabled=false;btn.textContent=pfx==='s'?'Submit all service credits':'Submit all recurring credits';
+      stopBtn.style.display='none';return;
+    }
+    if(bulkStop[pfx]){
+      var dev=devs[i];dev._status='Stopped';stopped++;
+      var tr=dev&&document.getElementById(pfx+'-row-'+dev.instanceId);
+      var badge=tr&&tr.querySelector('.sb');
+      if(badge){badge.className='sb sw';badge.textContent='Stopped';}
+      processNext(i+1);return;
+    }
+    var dev=devs[i];
+    var tr=dev&&document.getElementById(pfx+'-row-'+dev.instanceId);
+    var badge=tr&&tr.querySelector('.sb');
+    if(badge){badge.className='sb sl';badge.textContent='Sending...';}
+    apiFetch('/api/create-credit',records[i]).then(function(r){
+      var ok=r.error_code===0||r.error_code==='0';
+      var ids=[];
+      if(r.credit_id) ids.push('CID:'+r.credit_id);
+      if(r.recurring_credit_no) ids.push('RC:'+r.recurring_credit_no);
+      dev._creditId=r.credit_id||'';dev._rcNo=r.recurring_credit_no||'';
+      dev._status=ok?(ids.length?ids.join(' '):'Done'):(r.error_msg||'Error');
+      if(badge){badge.className='sb '+(ok?'so':'se');badge.textContent=dev._status;}
+      ok?success++:failed++;
+    }).catch(function(){dev._status='Error';if(badge){badge.className='sb se';badge.textContent='Error';}failed++;})
+    .finally(function(){processNext(i+1);});
+  }
+  processNext(0);
+}
+
+function downloadCSV(pfx){
+  var cs=bulkCallerStart[pfx];
+  var rows=document.querySelectorAll('#'+pfx+'-btbody tr');
+  var lines=['Instance ID,BAN,Device,Monthly Promotion,Frequency,Service ID,Credit ID,RC,Status,Alt Caller,Start Date'];
+  rows.forEach(function(tr){
+    var cells=tr.querySelectorAll('td');if(!cells.length) return;
+    var instId=cells[0].textContent.trim();
+    var dev=bulkData[pfx].find(function(d){return d&&d.instanceId===instId;});
+    function esc(v){return'"'+String(v).replace(/"/g,'""')+'"';}
+    lines.push([instId,dev?dev.acct_id:'',dev?dev.device_name:'',dev?'$'+dev.amount.toFixed(2):'',dev?(pfx==='s'?1:dev.frequency):'',dev?dev.svc_id:'',dev?(dev._creditId||''):'',dev?(dev._rcNo||''):'',dev?(dev._status||''):'',cs.caller,cs.start].map(esc).join(','));
+  });
+  triggerDownload(lines.join('\n'),'aria_credits_'+(pfx==='r'?'recurring':'service')+'_'+cs.start+'.csv');
+}
+
+function submitCancelSingle(type){
+  var acct=document.getElementById(type+'-acct').value.trim();
+  var id=document.getElementById(type+'-id').value.trim();
+  var caller=document.getElementById(type+'-caller').value.trim();
+  if(!acct||!id||!caller){showResult(type+'-res',false,'All fields required.',{});return;}
+  var endpoint=type==='sc'?'/api/cancel-service-credit':'/api/cancel-recurring-credit';
+  var body=type==='sc'?{client_acct_id:acct,scid:id,alt_caller_id:caller}:{client_acct_id:acct,rcid:id,alt_caller_id:caller};
+  apiFetch(endpoint,body).then(function(data){var ok=data.error_code===0||data.error_code==='0';showResult(type+'-res',ok,data.error_msg||'Done',data);})
+  .catch(function(e){showResult(type+'-res',false,e.message,{});});
+}
+
+function submitCancelBulk(type){
+  var caller=document.getElementById(type+'-bcaller').value.trim();
+  var raw=document.getElementById(type+'-bids').value.trim();
+  if(!caller){alert('Enter an alt caller ID.');return;}
+  var lines=raw.split('\n').map(function(l){return l.trim();}).filter(Boolean);
+  if(!lines.length) return;
+  var btn=document.getElementById(type+'-bsbtn');
+  btn.disabled=true;btn.textContent='Cancelling...';
+  var tbody=document.getElementById(type+'-btbody');
+  tbody.innerHTML='';
+  document.getElementById(type+'-btable').style.display='block';
+  document.getElementById(type+'-dlbtn').style.display='none';
+  var rows=lines.map(function(line){var p=line.split(',');return{acct:(p[0]||'').trim(),id:(p[1]||'').trim()};});
+  rows.forEach(function(r){
+    var tr=document.createElement('tr');tr.id=type+'-crow-'+r.id;
+    tr.innerHTML='<td>'+r.acct+'</td><td style="font-family:monospace">'+r.id+'</td><td><span class="sb sl">Sending</span></td>';
+    tbody.appendChild(tr);
+  });
+  var endpoint=type==='sc'?'/api/bulk-cancel-service-credit':'/api/bulk-cancel-recurring-credit';
+  var records=rows.map(function(r){return type==='sc'?{client_acct_id:r.acct,scid:r.id,alt_caller_id:caller}:{client_acct_id:r.acct,rcid:r.id,alt_caller_id:caller};});
+  apiFetch(endpoint,{records:records}).then(function(res){
+    var success=0,failed=0,results=[];
+    (res.results||[]).forEach(function(r,i){
+      var row=rows[i];
+      var tr=document.getElementById(type+'-crow-'+row.id);
+      var badge=tr&&tr.querySelector('.sb');
+      var ok=r.success&&(r.error_code===0||r.error_code==='0');
+      var st=ok?'Done':(r.error_msg||r.error||'Error');
+      if(badge){badge.className='sb '+(ok?'so':'se');badge.textContent=st;}
+      ok?success++:failed++;results.push({acct:row.acct,id:row.id,status:st});
+    });
+    showResult(type+'-bres',failed===0,success+' cancelled'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+    var dlBtn=document.getElementById(type+'-dlbtn');
+    dlBtn.style.display='block';dlBtn._results=results;dlBtn._caller=caller;
+  }).catch(function(e){showResult(type+'-bres',false,e.message,{});})
+  .finally(function(){btn.disabled=false;btn.textContent=type==='sc'?'Cancel all service credits':'Cancel all recurring credits';});
+}
+
+function plStatusColor(v){return v==='Active'?'#68d391':(!v||v==='N/A')?'#a0aec0':'#fc8181';}
+function plNsoColor(v){return v==='Yes'?'#68d391':v==='No'?'#fc8181':v==='N/A'?'#a0aec0':'#f6ad55';}
+function plInstColor(v){var lv=(v||'').toLowerCase();return lv==='active'?'#68d391':lv==='blank'?'#f6ad55':'#a0aec0';}
+
+function renderPlanRow(msisdn,d){
+  var tr=document.getElementById('pl-row-'+msisdn);
+  if(!tr) return;
+  function td(v){return '<td>'+(v||'N/A')+'</td>';}
+  function tdc(v,c){return '<td style="color:'+c+';font-weight:500">'+(v||'N/A')+'</td>';}
+  var instStr=d.inst_string||'N/A';
+  var instPreview=instStr.length>40?instStr.substring(0,40)+'…':instStr;
+  tr.innerHTML=
+    '<td style="font-family:monospace;font-size:11px">'+msisdn+'</td>'
+    +'<td style="font-family:monospace;font-size:11px">'+(d.ban_can||'N/A')+'</td>'
+    +tdc(d.account_status,plStatusColor(d.account_status))
+    +tdc(d.master_plan_status,plStatusColor(d.master_plan_status))
+    +'<td style="font-family:monospace;font-size:10px">'+(d.client_plan_instance_id||'N/A')+'</td>'
+    +td(d.plan_name)
+    +tdc(d.plan_status,plStatusColor(d.plan_status))
+    +td(d.plan_status_date)
+    +td(d.child_plan1)
+    +'<td style="font-family:monospace;font-size:10px">'+(d.child_client_plan1_id||'N/A')+'</td>'
+    +tdc(d.child_plan1_status,plStatusColor(d.child_plan1_status))
+    +td(d.child_start_date)
+    +td(d.child_end_date)
+    +tdc(d.inst_status,plInstColor(d.inst_status))
+    +'<td>'+d.no_of_inst+'</td>'
+    +'<td style="color:'+(d.no_of_active_inst>0?'#68d391':'#a0aec0')+'">'+d.no_of_active_inst+'</td>'
+    +tdc(d.nso_exist,plNsoColor(d.nso_exist))
+    +'<td style="font-family:monospace;font-size:10px;color:#718096" title="'+instStr+'">'+instPreview+'</td>';
+}
+
+function planLookupRun(){
+  var ids=document.getElementById('pl-msisdns').value.trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  if(!ids.length) return;
+  var btn=document.getElementById('pl-lbtn');
+  btn.disabled=true;btn.textContent='Looking up...';
+  document.getElementById('pl-err').style.display='none';
+  planResults=[];
+  var tbody=document.getElementById('pl-tbody');
+  tbody.innerHTML='';
+  document.getElementById('pl-table').style.display='block';
+  document.getElementById('pl-dlbtn').style.display='none';
+  ids.forEach(function(id){
+    var tr=document.createElement('tr');tr.id='pl-row-'+id;
+    tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="17"><span class="sb sl">Loading...</span></td>';
+    tbody.appendChild(tr);
+  });
+  var total=ids.length,ok=0,err=0,done=0;
+  function updateSum(){document.getElementById('pl-bsum').innerHTML='<div class="scard"><span>'+total+'</span>Total</div><div class="scard"><span style="color:#68d391">'+ok+'</span>Success</div><div class="scard"><span style="color:#fc8181">'+err+'</span>Errors</div>';}
+  updateSum();
+  var idx=0;
+  function runNext(){
+    if(idx>=ids.length) return;
+    var id=ids[idx++];
+    apiFetch('/api/plan-lookup',{msisdn:id})
+    .then(function(d){renderPlanRow(id,d);planResults.push(d);ok++;})
+    .catch(function(e){
+      var tr=document.getElementById('pl-row-'+id);
+      if(tr) tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="17" style="color:#fc8181">'+e.message+'</td>';
+      planResults.push({msisdn:id,error:e.message});err++;
+    })
+    .finally(function(){
+      done++;updateSum();
+      if(done===total){btn.disabled=false;btn.textContent='Look up';document.getElementById('pl-dlbtn').style.display='block';}
+      runNext();
+    });
+  }
+  for(var i=0;i<Math.min(3,ids.length);i++) runNext();
+}
+
+function downloadPlanCSV(){
+  var lines=['MSISDN,BAN,Acct Status,Master Plan,Plan Instance ID,Plan Name,Plan Status,Plan Status Date,Device Plan,Device Plan ID,Device Status,Start Date,End Date,Inst Status,# Inst,# Active Inst,NSO Exist,Inst String'];
+  planResults.forEach(function(d){
+    function esc(v){return'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';}
+    if(d.error){lines.push([d.msisdn,'ERROR','','','','','','','','','','','','','','',d.error,''].map(esc).join(','));}
+    else{lines.push([d.msisdn,d.ban_can,d.account_status,d.master_plan_status,d.client_plan_instance_id,d.plan_name,d.plan_status,d.plan_status_date,d.child_plan1,d.child_client_plan1_id,d.child_plan1_status,d.child_start_date,d.child_end_date,d.inst_status,d.no_of_inst,d.no_of_active_inst,d.nso_exist,d.inst_string].map(esc).join(','));}
+  });
+  triggerDownload(lines.join('\n'),'aria_plan_lookup_'+today+'.csv');
+}
+
+function downloadCancelCSV(type){
+  var btn=document.getElementById(type+'-dlbtn');
+  var results=btn._results||[];var caller=btn._caller||'';
+  var idLabel=type==='sc'?'SCID':'RCID';
+  var lines=['BAN,'+idLabel+',Status,Alt Caller'];
+  results.forEach(function(r){
+    function esc(v){return'"'+String(v).replace(/"/g,'""')+'"';}
+    lines.push([r.acct,r.id,r.status,caller].map(esc).join(','));
+  });
+  triggerDownload(lines.join('\n'),'aria_cancel_'+(type==='sc'?'service':'recurring')+'_'+today+'.csv');
+}
+</script>
+</body>
+</html>
