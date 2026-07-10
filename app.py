@@ -196,6 +196,12 @@ class SFUpdateFlagRequest(BaseModel):
 class PlanLookupRequest(BaseModel):
     msisdn: str
 
+class UpdatePlanStatusRequest(BaseModel):
+    client_plan_instance_id: str
+    client_acct_id: str
+    action: str  # "activate_align", "activate", "cancel"
+    alt_caller_id: str
+
 # ── Auth routes ───────────────────────────────────────────────────────────────
 @app.post("/api/login")
 async def login(req: LoginRequest):
@@ -457,7 +463,30 @@ async def sf_update_flag(req: SFUpdateFlagRequest, _=Depends(require_auth)):
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Salesforce API error: {str(e)}")
 
-# ── Plan lookup ───────────────────────────────────────────────────────────────
+# ── Update plan status ────────────────────────────────────────────────────────
+@app.post("/api/update-plan-status")
+async def update_plan_status(req: UpdatePlanStatusRequest, _=Depends(require_auth)):
+    plan_status_cd = 1 if req.action in ("activate_align", "activate") else -2
+    plan_update = {
+        "plan_directive":                  3,
+        "existing_client_plan_instance_id": req.client_plan_instance_id,
+        "plan_status_cd":                  plan_status_cd,
+        "proration_invoice_timing":        1,
+        "invoice_unbilled_usage":          False,
+    }
+    if req.action == "activate_align":
+        plan_update["auto_offset_months_option"] = 1
+    return await post_aria({
+        **base_payload(),
+        "rest_call":            "update_acct_plan_multi_m",
+        "client_acct_id":       req.client_acct_id,
+        "assignment_directive": "3",
+        "invoicing_option":     "4",
+        "alt_caller_id":        req.alt_caller_id,
+        "plan_updates":         [plan_update],
+    })
+
+# ── Plan lookup ────────────────────────────────────────────────────────────────
 def _parse_dt(s):
     if not s:
         return datetime.min

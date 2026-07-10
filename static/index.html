@@ -122,11 +122,80 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
   </div>
   <div class="nav">
     <button class="nav-tab" onclick="switchPage('plan',this)">Plan Lookup</button>
-    <button class="nav-tab disabled">Device manage <span class="nav-badge">Soon</span></button>
+    <button class="nav-tab" onclick="switchPage('device',this)">Device manage</button>
     <button class="nav-tab active" onclick="switchPage('credit',this)">Credit manage</button>
     <button class="nav-tab" onclick="switchPage('account',this)">Account details</button>
   </div>
   <div class="pages">
+
+    <!-- DEVICE MANAGE PAGE -->
+    <div class="page" id="page-device">
+      <div style="display:flex;gap:4px;margin-bottom:1.5rem;background:#1a202c;border-radius:10px;padding:4px">
+        <button class="mtgl active" style="flex:1;padding:10px;font-size:13px" onclick="switchDeviceTab('plan',this)">Plan Status</button>
+        <button class="mtgl" style="flex:1;padding:10px;font-size:13px" onclick="switchDeviceTab('device',this)">Device Status</button>
+        <button class="mtgl" style="flex:1;padding:10px;font-size:13px" onclick="switchDeviceTab('nso',this)">NSO</button>
+      </div>
+
+      <!-- Plan Status Tab -->
+      <div id="dt-plan">
+        <div class="card">
+          <div class="slabel">Plan Status</div>
+          <div class="field"><label>Client Plan Instance IDs (one per line)</label><textarea id="ps-ids" rows="4" placeholder="8024X00000BxUbvQAF&#10;8024X00000CgcSyQAJ"></textarea></div>
+          <button class="lbtn" id="ps-lbtn" onclick="planStatusLookup()" style="width:100%;height:auto;padding:10px">Look up all</button>
+          <div class="ferr" id="ps-err" style="margin-top:0.75rem"></div>
+        </div>
+        <div id="ps-table" style="display:none">
+          <div class="bsum" id="ps-bsum"></div>
+          <div class="sel-bar" id="ps-sel-bar">
+            <div class="sel-bar-row">
+              <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:#a0aec0;cursor:pointer">
+                <input type="checkbox" id="ps-chk-all" onchange="psToggleAll(this.checked)"> Select all
+              </label>
+              <span class="sel-count" id="ps-sel-count">0 selected</span>
+            </div>
+            <div class="sel-bar-row">
+              <div class="field" style="margin:0;min-width:260px">
+                <input id="ps-caller" placeholder="Alt caller / ticket (required)" style="padding:6px 10px;font-size:12px">
+              </div>
+              <button class="action-btn" style="background:#1a4a8a;color:#fff" id="ps-btn-align" onclick="psApply('activate_align')" disabled>Active (Align cycle with MPI)</button>
+              <button class="action-btn" style="background:#276749;color:#fff" id="ps-btn-activate" onclick="psApply('activate')" disabled>Active</button>
+              <button class="action-btn" style="background:#742a2a;color:#fff" id="ps-btn-cancel" onclick="psApply('cancel')" disabled>Cancel</button>
+            </div>
+          </div>
+          <div class="bwrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:32px"></th>
+                  <th>Instance ID</th>
+                  <th>BAN</th>
+                  <th>Plan Name</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody id="ps-tbody"></tbody>
+            </table>
+          </div>
+          <div class="rbox" id="ps-res"></div>
+        </div>
+      </div>
+
+      <!-- Device Status Tab (placeholder) -->
+      <div id="dt-device" style="display:none">
+        <div class="card" style="text-align:center;padding:3rem;color:#4a5568">
+          <div style="font-size:32px;margin-bottom:1rem">🔧</div>
+          <div style="font-size:14px;font-weight:500;color:#718096">Device Status — Coming Soon</div>
+        </div>
+      </div>
+
+      <!-- NSO Tab (placeholder) -->
+      <div id="dt-nso" style="display:none">
+        <div class="card" style="text-align:center;padding:3rem;color:#4a5568">
+          <div style="font-size:32px;margin-bottom:1rem">🔧</div>
+          <div style="font-size:14px;font-weight:500;color:#718096">NSO Cancel / Place — Coming Soon</div>
+        </div>
+      </div>
+    </div>
 
     <!-- PLAN LOOKUP PAGE -->
     <div class="page" id="page-plan">
@@ -982,6 +1051,123 @@ function submitCancelBulk(type){
     dlBtn.style.display='block';dlBtn._results=results;dlBtn._caller=caller;
   }).catch(function(e){showResult(type+'-bres',false,e.message,{});})
   .finally(function(){btn.disabled=false;btn.textContent=type==='sc'?'Cancel all service credits':'Cancel all recurring credits';});
+}
+
+function switchDeviceTab(name,btn){
+  ['plan','device','nso'].forEach(function(n){document.getElementById('dt-'+n).style.display=n===name?'block':'none';});
+  btn.parentElement.querySelectorAll('.mtgl').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+}
+
+var psResults=[];
+var psSelected=new Set();
+
+function psUpdateSelBar(){
+  var n=psSelected.size;
+  document.getElementById('ps-sel-count').textContent=n+' selected';
+  document.getElementById('ps-btn-align').disabled=n===0;
+  document.getElementById('ps-btn-activate').disabled=n===0;
+  document.getElementById('ps-btn-cancel').disabled=n===0;
+}
+
+function psToggleAll(checked){
+  psSelected.clear();
+  document.querySelectorAll('.ps-row-chk').forEach(function(chk){
+    chk.checked=checked;
+    if(checked) psSelected.add(chk.dataset.id);
+  });
+  psUpdateSelBar();
+}
+
+function psToggleRow(id,checked){
+  if(checked) psSelected.add(id); else psSelected.delete(id);
+  var all=document.querySelectorAll('.ps-row-chk');
+  document.getElementById('ps-chk-all').checked=Array.from(all).every(function(c){return c.checked;})&&all.length>0;
+  psUpdateSelBar();
+}
+
+function planStatusLookup(){
+  var ids=document.getElementById('ps-ids').value.trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  if(!ids.length) return;
+  var btn=document.getElementById('ps-lbtn');
+  btn.disabled=true;btn.textContent='Looking up...';
+  document.getElementById('ps-err').style.display='none';
+  psResults=[];psSelected.clear();
+  document.getElementById('ps-chk-all').checked=false;
+  psUpdateSelBar();
+  var tbody=document.getElementById('ps-tbody');
+  tbody.innerHTML='';
+  document.getElementById('ps-table').style.display='block';
+  document.getElementById('ps-res').style.display='none';
+  ids.forEach(function(id){
+    var tr=document.createElement('tr');tr.id='ps-row-'+id;
+    tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="3"><span class="sb sl">Loading...</span></td>';
+    tbody.appendChild(tr);
+  });
+  var total=ids.length,ok=0,err=0,done=0;
+  function updateSum(){document.getElementById('ps-bsum').innerHTML='<div class="scard"><span>'+total+'</span>Total</div><div class="scard"><span style="color:#68d391">'+ok+'</span>Ready</div><div class="scard"><span style="color:#fc8181">'+err+'</span>Errors</div>';}
+  updateSum();
+  var idx=0;
+  function runNext(){
+    if(idx>=ids.length) return;
+    var id=ids[idx++];
+    apiFetch('/api/lookup',{client_plan_instance_id:id})
+    .then(function(d){
+      psResults.push({instance_id:id,acct_id:d.acct_id,plan_name:d.device_name,success:true});
+      var tr=document.getElementById('ps-row-'+id);
+      if(tr) tr.innerHTML=
+        '<td><input type="checkbox" class="ps-row-chk" data-id="'+id+'" onchange="psToggleRow(\''+id+'\',this.checked)"></td>'
+        +'<td style="font-family:monospace;font-size:11px">'+id+'</td>'
+        +'<td style="font-family:monospace;font-size:11px">'+(d.acct_id||'N/A')+'</td>'
+        +'<td>'+(d.device_name||'N/A')+'</td>'
+        +'<td class="ps-result-'+id+'"><span class="sb sl">—</span></td>';
+      ok++;
+    })
+    .catch(function(e){
+      psResults.push({instance_id:id,success:false,error:e.message});
+      var tr=document.getElementById('ps-row-'+id);
+      if(tr) tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="3" style="color:#fc8181">'+e.message+'</td>';
+      err++;
+    })
+    .finally(function(){done++;updateSum();if(done===total){btn.disabled=false;btn.textContent='Look up all';}runNext();});
+  }
+  for(var i=0;i<Math.min(3,ids.length);i++) runNext();
+}
+
+function psApply(action){
+  if(psSelected.size===0) return;
+  var caller=document.getElementById('ps-caller').value.trim();
+  if(!caller){alert('Enter an alt caller / ticket first.');return;}
+  var labels={'activate_align':'Active (Align cycle with MPI)','activate':'Active','cancel':'Cancel'};
+  if(!confirm(labels[action]+' on '+psSelected.size+' selected plan(s)?')) return;
+  var toProcess=Array.from(psSelected);
+  var success=0,failed=0,done=0;
+  toProcess.forEach(function(id){
+    var d=psResults.find(function(r){return r.instance_id===id;});
+    if(!d||!d.success){
+      failed++;done++;
+      var cell=document.querySelector('.ps-result-'+id);
+      if(cell) cell.innerHTML='<span class="sb se">Error</span>';
+      if(done===toProcess.length) showResult('ps-res',failed===0,success+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+      return;
+    }
+    apiFetch('/api/update-plan-status',{client_plan_instance_id:id,client_acct_id:d.acct_id,action:action,alt_caller_id:caller})
+    .then(function(r){
+      var ok=r.error_code===0||r.error_code==='0';
+      ok?success++:failed++;
+      var cell=document.querySelector('.ps-result-'+id);
+      if(cell) cell.innerHTML='<span class="sb '+(ok?'so':'se')+'">'+(ok?labels[action]+' Done':(r.error_msg||'Error'))+'</span>';
+    })
+    .catch(function(){
+      failed++;
+      var cell=document.querySelector('.ps-result-'+id);
+      if(cell) cell.innerHTML='<span class="sb se">Error</span>';
+    })
+    .finally(function(){
+      done++;
+      if(done===toProcess.length) showResult('ps-res',failed===0,success+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+    });
+  });
 }
 
 function plStatusColor(v){return v==='Active'?'#68d391':(!v||v==='N/A')?'#a0aec0':'#fc8181';}
