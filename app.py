@@ -207,7 +207,7 @@ class UpdateDeviceStatusRequest(BaseModel):
     client_acct_id: str
     action: str  # "activate_align", "activate", "cancel"
     alt_caller_id: str
-    comments: str
+    comments: str = ""
 
 # ── Auth routes ───────────────────────────────────────────────────────────────
 @app.post("/api/login")

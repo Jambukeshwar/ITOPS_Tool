@@ -200,9 +200,6 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
               <div class="field" style="margin:0;min-width:260px">
                 <input id="ds-caller" placeholder="Alt caller / ticket (required)" style="padding:6px 10px;font-size:12px">
               </div>
-              <div class="field" style="margin:0;min-width:240px">
-                <input id="ds-comments" placeholder="Comments (required)" style="padding:6px 10px;font-size:12px">
-              </div>
               <button class="action-btn" style="background:#1a4a8a;color:#fff" id="ds-btn-align" onclick="dsApply('activate_align')" disabled>Active (Align cycle with MPI)</button>
               <button class="action-btn" style="background:#276749;color:#fff" id="ds-btn-activate" onclick="dsApply('activate')" disabled>Active</button>
               <button class="action-btn" style="background:#742a2a;color:#fff" id="ds-btn-cancel" onclick="dsApply('cancel')" disabled>Cancel</button>
@@ -219,6 +216,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
                   <th>Status</th>
                   <th>Status Date</th>
                   <th>Product Field Value</th>
+                  <th>Comments</th>
                   <th>Result</th>
                 </tr>
               </thead>
@@ -1218,7 +1216,8 @@ function renderDSRow(id,d,err){
     +'<td style="font-size:11px">'+d.client_plan_id+'</td>'
     +'<td style="color:'+scol+';font-weight:500">'+d.status_label+'</td>'
     +'<td style="font-size:11px">'+d.status_date+'</td>'
-    +'<td style="font-size:10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+d.product_field_value+'">'+d.product_field_value+'</td>'
+    +'<td style="font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+d.product_field_value+'">'+d.product_field_value+'</td>'
+    +'<td><input id="ds-cmmt-'+id+'" placeholder="Comment" style="padding:4px 6px;font-size:11px;width:160px;background:#2d3748;border:1px solid #4a5568;border-radius:4px;color:#e2e8f0"></td>'
     +'<td id="ds-act-'+id+'">—</td>';
 }
 
@@ -1241,10 +1240,17 @@ function dsToggleAll(v){
 function dsApply(action){
   var caller=document.getElementById('ds-caller').value.trim();
   if(!caller){alert('Alt caller / ticket is required.');return;}
-  var comments=document.getElementById('ds-comments').value.trim();
-  if(!comments){alert('Comments is required.');return;}
   var chks=document.querySelectorAll('.ds-chk:checked');
   if(!chks.length){alert('Select at least one row.');return;}
+  // For cancel, validate every selected row has a comment
+  if(action==='cancel'){
+    var missing=[];
+    chks.forEach(function(chk){
+      var cmmt=document.getElementById('ds-cmmt-'+chk.dataset.id);
+      if(!cmmt||!cmmt.value.trim()) missing.push(chk.dataset.id);
+    });
+    if(missing.length){alert('Comment required for:\n'+missing.join('\n'));return;}
+  }
   ['ds-btn-align','ds-btn-activate','ds-btn-cancel'].forEach(function(id){document.getElementById(id).disabled=true;});
   var done=0,success=0,failed=0,total=chks.length;
   chks.forEach(function(chk){
@@ -1253,12 +1259,13 @@ function dsApply(action){
     if(!row||!row.data){done++;return;}
     var cell=document.getElementById('ds-act-'+id);
     if(cell) cell.innerHTML='<span class="sb sl">Working...</span>';
+    var cmmt=document.getElementById('ds-cmmt-'+id);
     apiFetch('/api/update-device-status',{
       client_plan_instance_id:row.data.client_plan_instance_id,
       client_acct_id:row.data.client_acct_id,
       action:action,
       alt_caller_id:caller,
-      comments:comments
+      comments:cmmt?cmmt.value.trim():''
     })
     .then(function(res){
       var ok=res.error_code===0||res.error_code==='0';
@@ -1283,11 +1290,12 @@ function dsApply(action){
 }
 
 function downloadDeviceStatusCSV(){
-  var lines=['Instance ID,Account ID,Plan ID,Status,Status Date,Product Field Value,Result'];
+  var lines=['Instance ID,Account ID,Plan ID,Status,Status Date,Product Field Value,Comments,Result'];
   dsResults.forEach(function(r){
     function esc(v){return'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';}
     var d=r.data;
-    lines.push([r.id,d?d.client_acct_id:'N/A',d?d.client_plan_id:'N/A',d?d.status_label:'Error',d?d.status_date:'N/A',d?d.product_field_value:'',r.result||''].map(esc).join(','));
+    var cmmt=document.getElementById('ds-cmmt-'+r.id);
+    lines.push([r.id,d?d.client_acct_id:'N/A',d?d.client_plan_id:'N/A',d?d.status_label:'Error',d?d.status_date:'N/A',d?d.product_field_value:'',cmmt?cmmt.value:'',r.result||''].map(esc).join(','));
   });
   triggerDownload(lines.join('\n'),'aria_device_status_'+today+'.csv');
 }
