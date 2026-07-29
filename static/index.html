@@ -1467,6 +1467,7 @@ function downloadPlanCSV(){
 
 var dcResults=[];
 var dcCurrentAction=null;
+var dcPhase='idle'; // idle | looking | ready | executing
 
 function updateDCSum(total,eligible,skipped,done,failed){
   var html='<div class="scard"><span>'+total+'</span>Total</div>'
@@ -1477,11 +1478,37 @@ function updateDCSum(total,eligible,skipped,done,failed){
   document.getElementById('dc-bsum').innerHTML=html;
 }
 
+function dcResetButtons(){
+  dcPhase='idle';
+  document.getElementById('dc1-btn').disabled=false;
+  document.getElementById('dc3-btn').disabled=false;
+  document.getElementById('dc1-btn').textContent='DC-1 Suspend';
+  document.getElementById('dc3-btn').textContent='DC-3 Disconnect';
+  document.getElementById('dc1-btn').style.opacity='1';
+  document.getElementById('dc3-btn').style.opacity='1';
+}
+
 function runDC(action){
+  // Phase 2 — execute
+  if(dcPhase==='ready'&&dcCurrentAction===action){
+    var caller=document.getElementById('dc-caller').value.trim();
+    if(!caller){alert('Alt caller / ticket is required.');return;}
+    dcPhase='executing';
+    document.getElementById('dc1-btn').disabled=true;
+    document.getElementById('dc3-btn').disabled=true;
+    document.getElementById('dc1-btn').textContent=action==='dc1'?'Executing...':'DC-1 Suspend';
+    document.getElementById('dc3-btn').textContent=action==='dc3'?'Executing...':'DC-3 Disconnect';
+    executeDCActions(action,caller);
+    return;
+  }
+  if(dcPhase!=='idle') return;
+
+  // Phase 1 — lookup
   var ids=document.getElementById('dc-ids').value.trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
   var caller=document.getElementById('dc-caller').value.trim();
   if(!ids.length){alert('Enter BANCANs.');return;}
   if(!caller){alert('Alt caller / ticket is required.');return;}
+  dcPhase='looking';
   dcCurrentAction=action;
   dcResults=[];
   document.getElementById('dc1-btn').disabled=true;
@@ -1493,13 +1520,13 @@ function runDC(action){
   document.getElementById('dc-table').style.display='block';
   document.getElementById('dc-dlbtn').style.display='none';
   document.getElementById('dc-res').style.display='none';
+  var total=ids.length,lookupDone=0,idx=0;
+  updateDCSum(total,0,0);
   ids.forEach(function(id){
     var tr=document.createElement('tr');tr.id='dc-row-'+id;
     tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="7"><span class="sb sl">Looking up...</span></td>';
     tbody.appendChild(tr);
   });
-  updateDCSum(ids.length,0,0);
-  var total=ids.length,lookupDone=0,idx=0;
 
   function renderLookupRow(id,d){
     var steps=d?DUNNING_STEPS[d.dunning_process_id]:null;
@@ -1509,14 +1536,11 @@ function runDC(action){
     var eligibility='Eligible';
     if(!d) eligibility='Lookup Error';
     else if(balance<=0){
-      var payStatus=d?d.payment_status:'';
-      var payDate=d?d.payment_date:'';
+      var payStatus=d.payment_status||'';
+      var payDate=d.payment_date||'';
       var settlePending=payStatus==='Settlement Pending';
       var settleAge=NaN;
-      if(settlePending&&payDate&&payDate!=='N/A'){
-        var pd=new Date(payDate);
-        if(!isNaN(pd.getTime())) settleAge=(Date.now()-pd.getTime())/(864e5);
-      }
+      if(settlePending&&payDate&&payDate!=='N/A'){var pd=new Date(payDate);if(!isNaN(pd.getTime())) settleAge=(Date.now()-pd.getTime())/(864e5);}
       if(settlePending&&settleAge>4) eligibility='Eligible';
       else eligibility='Skip: Balance $0'+(settlePending?' (Settlement Pending ≤4d)':'');
     }
@@ -1535,7 +1559,7 @@ function runDC(action){
       +'<td>'+(d?d.dunning_step:'N/A')+'</td>'
       +'<td>'+(targetStep!==null?targetStep:'N/A')+'</td>'
       +'<td style="color:'+ec+';font-weight:500">'+eligibility+'</td>'
-      +'<td id="dc-act-'+id+'"><span class="sb sl">Pending</span></td>';
+      +'<td id="dc-act-'+id+'">—</td>';
   }
 
   function lookupNext(){
@@ -1550,7 +1574,21 @@ function runDC(action){
       var el=dcResults.filter(function(r){return r.eligibility==='Eligible';}).length;
       var sk=dcResults.filter(function(r){return r.eligibility!=='Eligible'&&r.eligibility!=='Lookup Error';}).length;
       updateDCSum(total,el,sk);
-      if(lookupDone===total) executeDCActions(action,caller);
+      if(lookupDone===total){
+        if(el>0){
+          dcPhase='ready';
+          var lbl=action==='dc1'?'DC-1 Suspend':'DC-3 Disconnect';
+          var activeBtn=document.getElementById(action===\'dc1\'?\'dc1-btn\':\'dc3-btn\');
+          var otherBtn=document.getElementById(action===\'dc1\'?\'dc3-btn\':\'dc1-btn\');
+          activeBtn.disabled=false;
+          activeBtn.textContent='Execute '+lbl+' ('+el+' eligible)';
+          otherBtn.disabled=true;
+          otherBtn.style.opacity='0.4';
+        } else {
+          showResult('dc-res',true,'Lookup complete — no eligible accounts.',{});
+          dcResetButtons();
+        }
+      }
       lookupNext();
     });
   }
@@ -1566,8 +1604,7 @@ function executeDCActions(action,caller){
     if(cell) cell.innerHTML='<span class="sb sw">'+r.eligibility+'</span>';
   });
   if(!eligible.length){
-    document.getElementById('dc1-btn').disabled=false;document.getElementById('dc3-btn').disabled=false;
-    document.getElementById('dc1-btn').textContent='DC-1 Suspend';document.getElementById('dc3-btn').textContent='DC-3 Disconnect';
+    dcResetButtons();
     document.getElementById('dc-dlbtn').style.display='block';
     showResult('dc-res',true,'No eligible accounts — all skipped.',{});
     return;
@@ -1594,8 +1631,7 @@ function executeDCActions(action,caller){
       if(done===eligible.length){
         updateDCSum(total,eligible.length,skipped,success,failed);
         showResult('dc-res',failed===0,success+' '+(action==='dc1'?'suspended':'disconnected')+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed,skipped:skipped});
-        document.getElementById('dc1-btn').disabled=false;document.getElementById('dc3-btn').disabled=false;
-        document.getElementById('dc1-btn').textContent='DC-1 Suspend';document.getElementById('dc3-btn').textContent='DC-3 Disconnect';
+        dcResetButtons();
         document.getElementById('dc-dlbtn').style.display='block';
       }
     });
