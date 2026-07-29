@@ -584,7 +584,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
 </div>
 
 <script>
-var API = "http://localhost:8002";
+var API = window.location.origin;
 var today = new Date().toISOString().split('T')[0];
 var cancelType = 'sc';
 var deviceData = {r:null,s:null};
