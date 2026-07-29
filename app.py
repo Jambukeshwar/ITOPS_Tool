@@ -202,6 +202,13 @@ class UpdatePlanStatusRequest(BaseModel):
     action: str  # "activate_align", "activate", "cancel"
     alt_caller_id: str
 
+class UpdateDeviceStatusRequest(BaseModel):
+    client_plan_instance_id: str
+    client_acct_id: str
+    action: str  # "activate_align", "activate", "cancel"
+    alt_caller_id: str
+    comments: str
+
 # ── Auth routes ───────────────────────────────────────────────────────────────
 @app.post("/api/login")
 async def login(req: LoginRequest):
@@ -491,6 +498,43 @@ async def sf_update_flag(req: SFUpdateFlagRequest, _=Depends(require_auth)):
         raise
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Salesforce API error: {str(e)}")
+
+# ── Update device status ─────────────────────────────────────────────────────
+@app.post("/api/update-device-status")
+async def update_device_status(req: UpdateDeviceStatusRequest, _=Depends(require_auth)):
+    if req.action == "cancel":
+        return await post_aria({
+            **base_payload(),
+            "rest_call":                        "update_acct_plan_multi_m",
+            "client_acct_id":                   req.client_acct_id,
+            "plan_directive":                   4,
+            "assignment_directive":             "3",
+            "invoicing_option":                 "4",
+            "existing_client_plan_instance_id": req.client_plan_instance_id,
+            "plan_status_cd":                   1,
+            "comments":                         req.comments,
+            "alt_caller_id":                    req.alt_caller_id,
+        })
+    else:
+        plan_update = {
+            "plan_directive":                   3,
+            "existing_client_plan_instance_id": req.client_plan_instance_id,
+            "plan_status_cd":                   1,
+            "proration_invoice_timing":         1,
+            "invoice_unbilled_usage":           False,
+        }
+        if req.action == "activate_align":
+            plan_update["auto_offset_months_option"] = 1
+        return await post_aria({
+            **base_payload(),
+            "rest_call":            "update_acct_plan_multi_m",
+            "client_acct_id":       req.client_acct_id,
+            "assignment_directive": "3",
+            "invoicing_option":     "4",
+            "comments":             req.comments,
+            "alt_caller_id":        req.alt_caller_id,
+            "plan_updates":         [plan_update],
+        })
 
 # ── Update plan status ────────────────────────────────────────────────────────
 @app.post("/api/update-plan-status")
