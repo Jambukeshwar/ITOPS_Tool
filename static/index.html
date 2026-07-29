@@ -504,6 +504,39 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
           <button class="btn btn-secondary" id="acct-dlbtn" style="display:none;margin-top:8px" onclick="downloadAccountCSV()">Download results as CSV</button>
         </div>
       </div>
+
+      <!-- DC Data Fix -->
+      <div class="card">
+        <div class="slabel">DC Data Fix</div>
+        <div class="field"><label>BANCANs (one per line)</label><textarea id="dc-ids" rows="5" placeholder="21049966-20049962&#10;21049967-20049963"></textarea></div>
+        <div class="field"><label>Alt caller / ticket <span style="color:#fc8181">*</span></label><input id="dc-caller" placeholder="e.g. Jambu - TKT123"></div>
+        <div style="display:flex;gap:8px;margin-top:0.25rem">
+          <button class="btn" id="dc1-btn" onclick="runDC('dc1')" style="background:#c05621;color:#fff;flex:1">DC-1 Suspend</button>
+          <button class="btn" id="dc3-btn" onclick="runDC('dc3')" style="background:#742a2a;color:#fff;flex:1">DC-3 Disconnect</button>
+        </div>
+      </div>
+      <div id="dc-table" style="display:none">
+        <div class="bsum" id="dc-bsum"></div>
+        <div class="bwrap">
+          <table>
+            <thead>
+              <tr>
+                <th>BANCAN</th>
+                <th>Acct Status</th>
+                <th>Balance</th>
+                <th>Dunning Process</th>
+                <th>Current Step</th>
+                <th>Target Step</th>
+                <th>Eligibility</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody id="dc-tbody"></tbody>
+          </table>
+        </div>
+        <div class="rbox" id="dc-res"></div>
+        <button class="btn btn-secondary" id="dc-dlbtn" style="display:none;margin-top:8px" onclick="downloadDCCSV()">Download results as CSV</button>
+      </div>
     </div>
 
   </div>
@@ -1249,6 +1282,143 @@ function downloadPlanCSV(){
     else{lines.push([d.msisdn,d.ban_can,d.account_status,d.master_plan_status,d.client_plan_instance_id,d.plan_name,d.plan_status,d.plan_status_date,d.child_plan1,d.child_client_plan1_id,d.child_plan1_status,d.child_start_date,d.child_end_date,d.inst_status,d.no_of_inst,d.no_of_active_inst,d.nso_exist,d.inst_string].map(esc).join(','));}
   });
   triggerDownload(lines.join('\n'),'aria_plan_lookup_'+today+'.csv');
+}
+
+var dcResults=[];
+var dcCurrentAction=null;
+
+function updateDCSum(total,eligible,skipped,done,failed){
+  var html='<div class="scard"><span>'+total+'</span>Total</div>'
+    +'<div class="scard"><span style="color:#68d391">'+eligible+'</span>Eligible</div>'
+    +'<div class="scard"><span style="color:#f6ad55">'+skipped+'</span>Skipped</div>';
+  if(done!==undefined) html+='<div class="scard"><span style="color:#68d391">'+done+'</span>Done</div>';
+  if(failed!==undefined) html+='<div class="scard"><span style="color:#fc8181">'+failed+'</span>Failed</div>';
+  document.getElementById('dc-bsum').innerHTML=html;
+}
+
+function runDC(action){
+  var ids=document.getElementById('dc-ids').value.trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  var caller=document.getElementById('dc-caller').value.trim();
+  if(!ids.length){alert('Enter BANCANs.');return;}
+  if(!caller){alert('Alt caller / ticket is required.');return;}
+  dcCurrentAction=action;
+  dcResults=[];
+  document.getElementById('dc1-btn').disabled=true;
+  document.getElementById('dc3-btn').disabled=true;
+  document.getElementById('dc1-btn').textContent=action==='dc1'?'Looking up...':'DC-1 Suspend';
+  document.getElementById('dc3-btn').textContent=action==='dc3'?'Looking up...':'DC-3 Disconnect';
+  var tbody=document.getElementById('dc-tbody');
+  tbody.innerHTML='';
+  document.getElementById('dc-table').style.display='block';
+  document.getElementById('dc-dlbtn').style.display='none';
+  document.getElementById('dc-res').style.display='none';
+  ids.forEach(function(id){
+    var tr=document.createElement('tr');tr.id='dc-row-'+id;
+    tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="7"><span class="sb sl">Looking up...</span></td>';
+    tbody.appendChild(tr);
+  });
+  updateDCSum(ids.length,0,0);
+  var total=ids.length,lookupDone=0,idx=0;
+
+  function renderLookupRow(id,d){
+    var steps=d?DUNNING_STEPS[d.dunning_process_id]:null;
+    var currentStep=d?(parseInt(d.dunning_step)||0):0;
+    var balance=d?parseFloat(d.current_balance_due||0):0;
+    var targetStep=steps?(action==='dc1'?steps.suspend:steps.disconnect):null;
+    var eligibility='Eligible';
+    if(!d) eligibility='Lookup Error';
+    else if(balance<=0) eligibility='Skip: Balance $0';
+    else if(!steps) eligibility='Skip: No Dunning Process';
+    else if(action==='dc1'&&currentStep>=steps.suspend) eligibility='Skip: Already Suspended';
+    else if(action==='dc3'&&currentStep>=steps.disconnect) eligibility='Skip: Already Disconnected';
+    dcResults.push({id:id,data:d,eligibility:eligibility,targetStep:targetStep,result:null});
+    var sc=d&&d.account_status==='Active'?'color:#68d391':'color:#fc8181';
+    var ec=eligibility==='Eligible'?'#68d391':eligibility==='Lookup Error'?'#fc8181':'#f6ad55';
+    var tr=document.getElementById('dc-row-'+id);
+    if(tr) tr.innerHTML=
+      '<td style="font-family:monospace;font-size:11px">'+id+'</td>'
+      +'<td style="'+sc+'">'+(d?d.account_status:'Error')+'</td>'
+      +'<td>$'+balance.toFixed(2)+'</td>'
+      +'<td style="font-size:11px">'+(d?(d.dunning_process_id||'N/A'):'N/A')+'</td>'
+      +'<td>'+(d?d.dunning_step:'N/A')+'</td>'
+      +'<td>'+(targetStep!==null?targetStep:'N/A')+'</td>'
+      +'<td style="color:'+ec+';font-weight:500">'+eligibility+'</td>'
+      +'<td id="dc-act-'+id+'"><span class="sb sl">Pending</span></td>';
+  }
+
+  function lookupNext(){
+    if(idx>=ids.length) return;
+    var id=ids[idx++];
+    fetch(API+'/api/account-details',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_acct_id:id})})
+    .then(function(r){return r.json().then(function(data){return{ok:r.ok,data:data};});})
+    .then(function(res){renderLookupRow(id,res.ok?res.data:null);})
+    .catch(function(){renderLookupRow(id,null);})
+    .finally(function(){
+      lookupDone++;
+      var el=dcResults.filter(function(r){return r.eligibility==='Eligible';}).length;
+      var sk=dcResults.filter(function(r){return r.eligibility!=='Eligible'&&r.eligibility!=='Lookup Error';}).length;
+      updateDCSum(total,el,sk);
+      if(lookupDone===total) executeDCActions(action,caller);
+      lookupNext();
+    });
+  }
+  for(var i=0;i<Math.min(3,ids.length);i++) lookupNext();
+}
+
+function executeDCActions(action,caller){
+  var eligible=dcResults.filter(function(r){return r.eligibility==='Eligible';});
+  // Mark skipped rows
+  dcResults.filter(function(r){return r.eligibility!=='Eligible';}).forEach(function(r){
+    r.result=r.eligibility;
+    var cell=document.getElementById('dc-act-'+r.id);
+    if(cell) cell.innerHTML='<span class="sb sw">'+r.eligibility+'</span>';
+  });
+  if(!eligible.length){
+    document.getElementById('dc1-btn').disabled=false;document.getElementById('dc3-btn').disabled=false;
+    document.getElementById('dc1-btn').textContent='DC-1 Suspend';document.getElementById('dc3-btn').textContent='DC-3 Disconnect';
+    document.getElementById('dc-dlbtn').style.display='block';
+    showResult('dc-res',true,'No eligible accounts — all skipped.',{});
+    return;
+  }
+  var done=0,success=0,failed=0;
+  var total=dcResults.length;
+  var skipped=dcResults.filter(function(r){return r.eligibility!=='Eligible';}).length;
+  eligible.forEach(function(r){
+    apiFetch('/api/update-dunning',{client_acct_id:r.id,action:action==='dc1'?'suspend':'disconnect',alt_caller_id:caller,dunning_process_id:r.data.dunning_process_id})
+    .then(function(res){
+      var ok=res.error_code===0||res.error_code==='0';
+      ok?success++:failed++;
+      r.result=ok?(action==='dc1'?'Suspended':'Disconnected'):(res.error_msg||'Error');
+      var cell=document.getElementById('dc-act-'+r.id);
+      if(cell) cell.innerHTML='<span class="sb '+(ok?'so':'se')+'">'+r.result+'</span>';
+    })
+    .catch(function(){
+      failed++;r.result='Error';
+      var cell=document.getElementById('dc-act-'+r.id);
+      if(cell) cell.innerHTML='<span class="sb se">Error</span>';
+    })
+    .finally(function(){
+      done++;
+      if(done===eligible.length){
+        updateDCSum(total,eligible.length,skipped,success,failed);
+        showResult('dc-res',failed===0,success+' '+(action==='dc1'?'suspended':'disconnected')+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed,skipped:skipped});
+        document.getElementById('dc1-btn').disabled=false;document.getElementById('dc3-btn').disabled=false;
+        document.getElementById('dc1-btn').textContent='DC-1 Suspend';document.getElementById('dc3-btn').textContent='DC-3 Disconnect';
+        document.getElementById('dc-dlbtn').style.display='block';
+      }
+    });
+  });
+}
+
+function downloadDCCSV(){
+  var action=dcCurrentAction;
+  var lines=['BANCAN,Acct Status,Balance,Dunning Process,Current Step,Target Step,Eligibility,Result'];
+  dcResults.forEach(function(r){
+    function esc(v){return'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';}
+    var d=r.data;
+    lines.push([r.id,d?d.account_status:'Error',d?'$'+parseFloat(d.current_balance_due||0).toFixed(2):'N/A',d?(d.dunning_process_id||'N/A'):'N/A',d?d.dunning_step:'N/A',r.targetStep!==null?r.targetStep:'N/A',r.eligibility,r.result||'Pending'].map(esc).join(','));
+  });
+  triggerDownload(lines.join('\n'),'aria_'+action+'_datafix_'+today+'.csv');
 }
 
 function downloadCancelCSV(type){
