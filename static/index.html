@@ -180,11 +180,50 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
         </div>
       </div>
 
-      <!-- Device Status Tab (placeholder) -->
+      <!-- Device Status Tab -->
       <div id="dt-device" style="display:none">
-        <div class="card" style="text-align:center;padding:3rem;color:#4a5568">
-          <div style="font-size:32px;margin-bottom:1rem">🔧</div>
-          <div style="font-size:14px;font-weight:500;color:#718096">Device Status — Coming Soon</div>
+        <div class="card">
+          <div class="slabel">Device Status</div>
+          <div class="field"><label>Client Plan Instance IDs (one per line)</label><textarea id="ds-ids" rows="4" placeholder="802Pl00000GgPNSIA3&#10;802Pl00000HhRNTJB4"></textarea></div>
+          <button class="lbtn" id="ds-lbtn" onclick="deviceStatusLookup()" style="width:100%;height:auto;padding:10px">Look up all</button>
+          <div class="ferr" id="ds-err" style="margin-top:0.75rem"></div>
+        </div>
+        <div id="ds-table" style="display:none">
+          <div class="sel-bar" id="ds-sel-bar">
+            <div class="sel-bar-row">
+              <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:#a0aec0;cursor:pointer">
+                <input type="checkbox" id="ds-chk-all" onchange="dsToggleAll(this.checked)"> Select all
+              </label>
+              <span class="sel-count" id="ds-sel-count">0 selected</span>
+            </div>
+            <div class="sel-bar-row">
+              <div class="field" style="margin:0;min-width:260px">
+                <input id="ds-caller" placeholder="Alt caller / ticket (required)" style="padding:6px 10px;font-size:12px">
+              </div>
+              <button class="action-btn" style="background:#1a4a8a;color:#fff" id="ds-btn-align" onclick="dsApply('activate_align')" disabled>Active (Align cycle with MPI)</button>
+              <button class="action-btn" style="background:#276749;color:#fff" id="ds-btn-activate" onclick="dsApply('activate')" disabled>Active</button>
+              <button class="action-btn" style="background:#742a2a;color:#fff" id="ds-btn-cancel" onclick="dsApply('cancel')" disabled>Cancel</button>
+            </div>
+          </div>
+          <div class="bwrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:32px"></th>
+                  <th>Instance ID</th>
+                  <th>BAN</th>
+                  <th>Plan ID</th>
+                  <th>Status</th>
+                  <th>Status Date</th>
+                  <th>Product Field Value</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody id="ds-tbody"></tbody>
+            </table>
+          </div>
+          <div class="rbox" id="ds-res"></div>
+          <button class="btn btn-secondary" id="ds-dlbtn" style="display:none;margin-top:8px" onclick="downloadDeviceStatusCSV()">Download results as CSV</button>
         </div>
       </div>
 
@@ -1117,6 +1156,134 @@ function psToggleRow(id,checked){
   var all=document.querySelectorAll('.ps-row-chk');
   document.getElementById('ps-chk-all').checked=Array.from(all).every(function(c){return c.checked;})&&all.length>0;
   psUpdateSelBar();
+}
+
+var dsResults=[];
+
+function deviceStatusLookup(){
+  var ids=document.getElementById('ds-ids').value.trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  if(!ids.length){document.getElementById('ds-err').textContent='Enter at least one ID.';return;}
+  document.getElementById('ds-err').textContent='';
+  document.getElementById('ds-lbtn').disabled=true;
+  document.getElementById('ds-lbtn').textContent='Looking up...';
+  dsResults=[];
+  var tbody=document.getElementById('ds-tbody');
+  tbody.innerHTML='';
+  document.getElementById('ds-table').style.display='block';
+  document.getElementById('ds-dlbtn').style.display='none';
+  document.getElementById('ds-res').style.display='none';
+  ids.forEach(function(id){
+    var tr=document.createElement('tr');tr.id='ds-row-'+id;
+    tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="6"><span class="sb sl">Looking up...</span></td>';
+    tbody.appendChild(tr);
+  });
+  var done=0,idx=0;
+  function next(){
+    if(idx>=ids.length) return;
+    var id=ids[idx++];
+    apiFetch('/api/device-lookup',{client_plan_instance_id:id})
+    .then(function(d){renderDSRow(id,d,null);})
+    .catch(function(e){renderDSRow(id,null,e.message||'Error');})
+    .finally(function(){
+      done++;
+      if(done===ids.length){
+        document.getElementById('ds-lbtn').disabled=false;
+        document.getElementById('ds-lbtn').textContent='Look up all';
+        dsUpdateSel();
+      }
+      next();
+    });
+  }
+  for(var i=0;i<Math.min(3,ids.length);i++) next();
+}
+
+function renderDSRow(id,d,err){
+  dsResults.push({id:id,data:d,result:null});
+  var tr=document.getElementById('ds-row-'+id);
+  if(!tr) return;
+  if(err||!d){
+    tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="5"><span class="sb se">'+(err||'Not found')+'</span></td><td></td>';
+    return;
+  }
+  var sc=d.status_cd;
+  var scol=sc===1?'#68d391':sc===-2?'#fc8181':'#f6ad55';
+  var cb='<input type="checkbox" class="ds-chk" onchange="dsUpdateSel()" data-id="'+id+'">';
+  tr.innerHTML=
+    '<td>'+cb+'</td>'
+    +'<td style="font-family:monospace;font-size:11px">'+d.client_plan_instance_id+'</td>'
+    +'<td style="font-family:monospace;font-size:11px">'+d.client_acct_id+'</td>'
+    +'<td style="font-size:11px">'+d.client_plan_id+'</td>'
+    +'<td style="color:'+scol+';font-weight:500">'+d.status_label+'</td>'
+    +'<td style="font-size:11px">'+d.status_date+'</td>'
+    +'<td style="font-size:10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+d.product_field_value+'">'+d.product_field_value+'</td>'
+    +'<td id="ds-act-'+id+'">—</td>';
+}
+
+function dsUpdateSel(){
+  var chks=document.querySelectorAll('.ds-chk:checked');
+  var n=chks.length;
+  document.getElementById('ds-sel-count').textContent=n+' selected';
+  var allChk=document.getElementById('ds-chk-all');
+  var all=document.querySelectorAll('.ds-chk');
+  allChk.checked=all.length>0&&n===all.length;
+  allChk.indeterminate=n>0&&n<all.length;
+  ['ds-btn-align','ds-btn-activate','ds-btn-cancel'].forEach(function(id){document.getElementById(id).disabled=n===0;});
+}
+
+function dsToggleAll(v){
+  document.querySelectorAll('.ds-chk').forEach(function(c){c.checked=v;});
+  dsUpdateSel();
+}
+
+function dsApply(action){
+  var caller=document.getElementById('ds-caller').value.trim();
+  if(!caller){alert('Alt caller / ticket is required.');return;}
+  var chks=document.querySelectorAll('.ds-chk:checked');
+  if(!chks.length){alert('Select at least one row.');return;}
+  ['ds-btn-align','ds-btn-activate','ds-btn-cancel'].forEach(function(id){document.getElementById(id).disabled=true;});
+  var done=0,success=0,failed=0,total=chks.length;
+  chks.forEach(function(chk){
+    var id=chk.dataset.id;
+    var row=dsResults.find(function(r){return r.id===id;});
+    if(!row||!row.data){done++;return;}
+    var cell=document.getElementById('ds-act-'+id);
+    if(cell) cell.innerHTML='<span class="sb sl">Working...</span>';
+    apiFetch('/api/update-plan-status',{
+      client_plan_instance_id:row.data.client_plan_instance_id,
+      client_acct_id:row.data.client_acct_id,
+      action:action,
+      alt_caller_id:caller
+    })
+    .then(function(res){
+      var ok=res.error_code===0||res.error_code==='0';
+      ok?success++:failed++;
+      var label=action==='activate_align'?'Aligned & Active':action==='activate'?'Activated':'Cancelled';
+      row.result=ok?label:(res.error_msg||'Error');
+      if(cell) cell.innerHTML='<span class="sb '+(ok?'so':'se')+'">'+row.result+'</span>';
+    })
+    .catch(function(e){
+      failed++;row.result=e.message||'Error';
+      if(cell) cell.innerHTML='<span class="sb se">'+row.result+'</span>';
+    })
+    .finally(function(){
+      done++;
+      if(done===total){
+        showResult('ds-res',failed===0,success+' updated'+(failed?', '+failed+' failed.':'.'),{});
+        document.getElementById('ds-dlbtn').style.display='block';
+        dsUpdateSel();
+      }
+    });
+  });
+}
+
+function downloadDeviceStatusCSV(){
+  var lines=['Instance ID,Account ID,Plan ID,Status,Status Date,Product Field Value,Result'];
+  dsResults.forEach(function(r){
+    function esc(v){return'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';}
+    var d=r.data;
+    lines.push([r.id,d?d.client_acct_id:'N/A',d?d.client_plan_id:'N/A',d?d.status_label:'Error',d?d.status_date:'N/A',d?d.product_field_value:'',r.result||''].map(esc).join(','));
+  });
+  triggerDownload(lines.join('\n'),'aria_device_status_'+today+'.csv');
 }
 
 function planStatusLookup(){

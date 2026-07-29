@@ -268,6 +268,35 @@ async def lookup_device(req: LookupRequest, _=Depends(require_auth)):
         "pos15":            pos15,
     }
 
+@app.post("/api/device-lookup")
+async def device_lookup(req: LookupRequest, _=Depends(require_auth)):
+    data = await post_aria_query({
+        **base_payload(),
+        "rest_call":      "get_plan_instance_information_m",
+        "releaseVersion": "52",
+        "limit":          100,
+        "offset":         0,
+        "query_string":   f"client_plan_instance_id={req.client_plan_instance_id}",
+    })
+    if data.get("error_code") != 0:
+        raise HTTPException(status_code=400, detail=data.get("error_msg", "Lookup failed"))
+    details = data.get("plan_instance_details", [])
+    if not details:
+        raise HTTPException(status_code=404, detail="No plan instance found")
+    d = details[0]
+    pf = (d.get("product_fields") or [{}])[0].get("product_field_value", "")
+    STATUS_LABELS = {1: "Active", 0: "Inactive", -1: "Suspended", -2: "Cancelled"}
+    sc = d.get("status_cd")
+    return {
+        "client_plan_instance_id": d.get("client_plan_instance_id"),
+        "client_acct_id":          d.get("client_acct_id"),
+        "status_cd":               sc,
+        "status_label":            STATUS_LABELS.get(sc, f"Unknown ({sc})"),
+        "client_plan_id":          d.get("client_plan_id"),
+        "status_date":             d.get("status_date"),
+        "product_field_value":     pf,
+    }
+
 # ── Create credit ─────────────────────────────────────────────────────────────
 @app.post("/api/create-credit")
 async def create_credit(req: CreateCreditRequest, _=Depends(require_auth)):
