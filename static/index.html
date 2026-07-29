@@ -1578,8 +1578,8 @@ function runDC(action){
         if(el>0){
           dcPhase='ready';
           var lbl=action==='dc1'?'DC-1 Suspend':'DC-3 Disconnect';
-          var activeBtn=document.getElementById(action===\'dc1\'?\'dc1-btn\':\'dc3-btn\');
-          var otherBtn=document.getElementById(action===\'dc1\'?\'dc3-btn\':\'dc1-btn\');
+          var activeBtn=document.getElementById(action==='dc1'?'dc1-btn':'dc3-btn');
+          var otherBtn=document.getElementById(action==='dc1'?'dc3-btn':'dc1-btn');
           activeBtn.disabled=false;
           activeBtn.textContent='Execute '+lbl+' ('+el+' eligible)';
           otherBtn.disabled=true;
