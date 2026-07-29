@@ -1327,7 +1327,18 @@ function runDC(action){
     var targetStep=steps?(action==='dc1'?steps.suspend:steps.disconnect):null;
     var eligibility='Eligible';
     if(!d) eligibility='Lookup Error';
-    else if(balance<=0) eligibility='Skip: Balance $0';
+    else if(balance<=0){
+      var payStatus=d?d.payment_status:'';
+      var payDate=d?d.payment_date:'';
+      var settlePending=payStatus==='Settlement Pending';
+      var settleAge=NaN;
+      if(settlePending&&payDate&&payDate!=='N/A'){
+        var pd=new Date(payDate);
+        if(!isNaN(pd.getTime())) settleAge=(Date.now()-pd.getTime())/(864e5);
+      }
+      if(settlePending&&settleAge>4) eligibility='Eligible';
+      else eligibility='Skip: Balance $0'+(settlePending?' (Settlement Pending ≤4d)':'');
+    }
     else if(!steps) eligibility='Skip: No Dunning Process';
     else if(action==='dc1'&&currentStep>=steps.suspend) eligibility='Skip: Already Suspended';
     else if(action==='dc3'&&currentStep>=steps.disconnect) eligibility='Skip: Already Disconnected';
