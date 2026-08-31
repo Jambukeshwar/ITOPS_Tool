@@ -275,6 +275,39 @@ async def lookup_device(req: LookupRequest, _=Depends(require_auth)):
         "pos15":            pos15,
     }
 
+@app.post("/api/plan-status-lookup")
+async def plan_status_lookup(req: LookupRequest, _=Depends(require_auth)):
+    data = await post_aria_query({
+        **base_payload(),
+        "rest_call":      "get_plan_instance_information_m",
+        "releaseVersion": "52",
+        "limit":          100,
+        "offset":         0,
+        "query_string":   f"client_plan_instance_id={req.client_plan_instance_id}",
+    })
+    if data.get("error_code") != 0:
+        raise HTTPException(status_code=400, detail=data.get("error_msg", "Lookup failed"))
+    details = data.get("plan_instance_details", [])
+    if not details:
+        raise HTTPException(status_code=404, detail="No plan instance found")
+    d = details[0]
+    # Parse product_fields array by name
+    pf_map = {pf.get("product_field_name"): pf.get("product_field_value")
+              for pf in (d.get("product_fields") or [])}
+    STATUS_LABELS = {1: "Active", 0: "Inactive", -1: "Suspended", -2: "Cancelled"}
+    sc = d.get("status_cd")
+    return {
+        "client_plan_instance_id": d.get("client_plan_instance_id"),
+        "client_acct_id":          d.get("client_acct_id"),
+        "msisdn":                  pf_map.get("MSISDN", ""),
+        "user_name":               pf_map.get("User Name", ""),
+        "plan_name":               d.get("plan_name", ""),
+        "last_bill_date":          d.get("last_bill_date", ""),
+        "status_cd":               sc,
+        "status_label":            STATUS_LABELS.get(sc, f"Unknown ({sc})"),
+        "status_date":             d.get("status_date", ""),
+    }
+
 @app.post("/api/device-lookup")
 async def device_lookup(req: LookupRequest, _=Depends(require_auth)):
     data = await post_aria_query({
@@ -587,8 +620,35 @@ async def plan_lookup(req: PlanLookupRequest, _=Depends(require_auth)):
         raise HTTPException(status_code=404, detail=plan_data.get("error_msg", "No data found for this MSISDN"))
 
     details = plan_data.get("plan_instance_details", [])
-    final_plan = (max(details, key=lambda x: _parse_dt(x.get("status_date")))
-                  if len(details) > 1 else details[0])
+
+    # Filter out legacy plans:
+    #   - user_id (BAN/CAN) must contain a hyphen  (new-format account IDs)
+    #   - client_plan_instance_id must NOT be pure digits (old-format instance IDs)
+    def _is_valid(p):
+        uid  = str(p.get("user_id") or "")
+        inst = str(p.get("client_plan_instance_id") or "")
+        return "-" in uid and not inst.isdigit()
+
+    valid = [p for p in details if _is_valid(p)]
+    if not valid:
+        raise HTTPException(status_code=404, detail="No valid (non-legacy) plan found for this MSISDN")
+
+    # Select final plan from valid list
+    multiple_active_plans = []          # populated when >1 active plan found
+    if len(valid) == 1:
+        final_plan = valid[0]
+    else:
+        active = [p for p in valid if p.get("status_cd") == 1]
+        if len(active) > 1:
+            # Multiple active plans — flag all; pick the most-recently-changed as primary
+            multiple_active_plans = [p.get("client_plan_instance_id") for p in active]
+            final_plan = max(active, key=lambda x: _parse_dt(x.get("status_date")))
+        elif len(active) == 1:
+            # Exactly one active plan — straightforward
+            final_plan = active[0]
+        else:
+            # All cancelled — pick most recent status_date
+            final_plan = max(valid, key=lambda x: _parse_dt(x.get("status_date")))
 
     user_id                 = final_plan.get("user_id")
     client_plan_instance_id = final_plan.get("client_plan_instance_id")
@@ -705,6 +765,7 @@ async def plan_lookup(req: PlanLookupRequest, _=Depends(require_auth)):
         "no_of_inst":              no_of_inst,
         "no_of_active_inst":       no_of_active_inst,
         "nso_exist":               nso_exist,
+        "multiple_active_plans":   multiple_active_plans,   # non-empty = warning flag
     }
 
 # ── Serve UI ──────────────────────────────────────────────────────────────────

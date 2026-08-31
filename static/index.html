@@ -169,7 +169,12 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
                   <th style="width:32px"></th>
                   <th>Instance ID</th>
                   <th>BAN</th>
+                  <th>MSISDN</th>
+                  <th>User Name</th>
                   <th>Plan Name</th>
+                  <th>Status</th>
+                  <th>Last Bill Date</th>
+                  <th>Status Date</th>
                   <th>Result</th>
                 </tr>
               </thead>
@@ -269,6 +274,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
                 <th># Active</th>
                 <th>NSO Exist</th>
                 <th>Inst String</th>
+                <th>Multi-Plan</th>
               </tr>
             </thead>
             <tbody id="pl-tbody"></tbody>
@@ -289,60 +295,41 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
       <!-- Recurring -->
       <div id="ct-recurring">
         <div class="card">
-          <div class="mode-toggle">
-            <button class="mtgl active" onclick="setMode('r','single')">Single</button>
-            <button class="mtgl" onclick="setMode('r','bulk')">Bulk</button>
+          <div class="field"><label>Client plan instance IDs (one per line)</label><textarea id="r-ids" rows="4" placeholder="802Pl00000GgPNSIA3"></textarea></div>
+          <button class="lbtn" id="r-lbtn" onclick="creditLookup('r')" style="width:100%;height:auto;padding:10px;margin-bottom:0.5rem">Look up</button>
+          <div class="dcard" id="r-dcard">
+            <div class="dname" id="r-dname"></div>
+            <div class="dmeta">
+              <div class="mi">BAN: <b id="r-mban"></b></div>
+              <div class="mi">INST ID: <b id="r-minst"></b></div>
+              <div class="mi">Amount: <b id="r-mamt"></b></div>
+              <div class="mi">Frequency: <b id="r-mfreq"></b></div>
+              <div class="mi">Service ID: <b id="r-msvc"></b></div>
+            </div>
           </div>
-          <div id="r-single">
-            <div class="slabel">Lookup device</div>
-            <div class="lookup-row">
-              <div class="field" style="margin:0"><label>Client plan instance ID</label><input id="r-inst-id" placeholder="e.g. 802Pl00000GgPNSIA3"></div>
-              <button class="lbtn" id="r-lbtn" onclick="lookupSingle('r')">Look up</button>
-            </div>
-            <div class="dcard" id="r-dcard">
-              <div class="dname" id="r-dname"></div>
-              <div class="dmeta">
-                <div class="mi">BAN: <b id="r-mban"></b></div>
-                <div class="mi">INST ID: <b id="r-minst"></b></div>
-                <div class="mi">Amount: <b id="r-mamt"></b></div>
-                <div class="mi">Frequency: <b id="r-mfreq"></b></div>
-                <div class="mi">Service ID: <b id="r-msvc"></b></div>
-              </div>
-            </div>
-            <div class="fwarn" id="r-flag"></div>
-            <div class="ferr" id="r-freq-flag">Frequency is 0 — cannot create recurring credit.</div>
-            <div id="r-form" style="display:none">
-              <div class="divider"></div>
-              <div class="slabel">Credit details</div>
+          <div class="fwarn" id="r-flag"></div>
+          <div class="ferr" id="r-freq-flag">Frequency is 0 — cannot create recurring credit.</div>
+          <div id="r-bulk-section" style="display:none">
+            <div class="bsum" id="r-bsum"></div>
+            <div class="bwrap"><table><thead><tr><th>Instance ID</th><th>BAN</th><th>Device</th><th>Monthly promotion</th><th>Freq</th><th>Service ID</th><th>Status</th></tr></thead><tbody id="r-btbody"></tbody></table></div>
+          </div>
+          <div id="r-form" style="display:none">
+            <div class="divider"></div>
+            <div class="slabel">Credit details</div>
+            <div id="r-auto-fields">
               <div class="row2">
                 <div class="field"><label>Monthly promotion <span class="abadge">auto</span></label><input id="r-amount" type="number" step="0.01" readonly></div>
                 <div class="field"><label>Frequency <span class="abadge">auto</span></label><input id="r-freq" type="number" readonly></div>
               </div>
-              <div class="row2">
-                <div class="field"><label>Start date</label><input id="r-start" type="date"></div>
-                <div class="field"><label>Alt caller / ticket</label><input id="r-caller" placeholder="e.g. John Doe - TKT123"></div>
-              </div>
-              <button class="btn btn-primary" id="r-sbtn" onclick="submitSingle('r')">Submit recurring credit</button>
-              <div class="rbox" id="r-res"></div>
             </div>
-          </div>
-          <div id="r-bulk" style="display:none">
-            <div class="slabel">Bulk lookup</div>
-            <div class="field"><label>Client plan instance IDs (one per line)</label><textarea id="r-bids" rows="5" placeholder="802Pl00000GgPNSIA3"></textarea></div>
-            <button class="lbtn" id="r-blbtn" onclick="lookupBulk('r')" style="width:100%;height:auto;padding:10px;margin-bottom:1rem">Look up all</button>
-            <div id="r-bres" style="display:none">
-              <div class="bsum" id="r-bsum"></div>
-              <div class="bwrap"><table><thead><tr><th>Instance ID</th><th>BAN</th><th>Device</th><th>Monthly promotion</th><th>Freq</th><th>Service ID</th><th>Status</th></tr></thead><tbody id="r-btbody"></tbody></table></div>
-              <div class="divider"></div>
-              <div class="row2">
-                <div class="field"><label>Start date (all)</label><input id="r-bstart" type="date"></div>
-                <div class="field"><label>Alt caller (all)</label><input id="r-bcaller" placeholder="e.g. John Doe - TKT123"></div>
-              </div>
-              <button class="btn btn-primary" id="r-bsbtn" onclick="submitBulk('r')">Submit all recurring credits</button>
-              <button class="btn btn-danger" id="r-stopbtn" style="display:none;margin-top:6px" onclick="bulkStop.r=true;this.textContent='Stopping...';this.disabled=true">Hard Stop</button>
-              <div class="rbox" id="r-bres2"></div>
-              <button class="btn btn-secondary" id="r-dlbtn" style="display:none;margin-top:8px" onclick="downloadCSV('r')">Download results as CSV</button>
+            <div class="row2">
+              <div class="field"><label>Start date</label><input id="r-start" type="date"></div>
+              <div class="field"><label>Alt caller / ticket</label><input id="r-caller" placeholder="e.g. John Doe - TKT123"></div>
             </div>
+            <button class="btn btn-primary" id="r-sbtn" onclick="creditSubmit('r')">Submit recurring credit</button>
+            <button class="btn btn-danger" id="r-stopbtn" style="display:none;margin-top:6px" onclick="bulkStop.r=true;this.textContent='Stopping...';this.disabled=true">Hard Stop</button>
+            <div class="rbox" id="r-res"></div>
+            <button class="btn btn-secondary" id="r-dlbtn" style="display:none;margin-top:8px" onclick="downloadCSV('r')">Download results as CSV</button>
           </div>
         </div>
       </div>
@@ -350,60 +337,41 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
       <!-- Service -->
       <div id="ct-service" style="display:none">
         <div class="card">
-          <div class="mode-toggle">
-            <button class="mtgl active" onclick="setMode('s','single')">Single</button>
-            <button class="mtgl" onclick="setMode('s','bulk')">Bulk</button>
+          <div class="field"><label>Client plan instance IDs (one per line)</label><textarea id="s-ids" rows="4" placeholder="802Pl00000GgPNSIA3"></textarea></div>
+          <button class="lbtn" id="s-lbtn" onclick="creditLookup('s')" style="width:100%;height:auto;padding:10px;margin-bottom:0.5rem">Look up</button>
+          <div class="dcard" id="s-dcard">
+            <div class="dname" id="s-dname"></div>
+            <div class="dmeta">
+              <div class="mi">BAN: <b id="s-mban"></b></div>
+              <div class="mi">INST ID: <b id="s-minst"></b></div>
+              <div class="mi">Amount: <b id="s-mamt"></b></div>
+              <div class="mi">Frequency: <b id="s-mfreq">1 (fixed)</b></div>
+              <div class="mi">Service ID: <b id="s-msvc"></b></div>
+            </div>
           </div>
-          <div id="s-single">
-            <div class="slabel">Lookup device</div>
-            <div class="lookup-row">
-              <div class="field" style="margin:0"><label>Client plan instance ID</label><input id="s-inst-id" placeholder="e.g. 802Pl00000GgPNSIA3"></div>
-              <button class="lbtn" id="s-lbtn" onclick="lookupSingle('s')">Look up</button>
-            </div>
-            <div class="dcard" id="s-dcard">
-              <div class="dname" id="s-dname"></div>
-              <div class="dmeta">
-                <div class="mi">BAN: <b id="s-mban"></b></div>
-                <div class="mi">INST ID: <b id="s-minst"></b></div>
-                <div class="mi">Amount: <b id="s-mamt"></b></div>
-                <div class="mi">Frequency: <b id="s-mfreq">1 (fixed)</b></div>
-                <div class="mi">Service ID: <b id="s-msvc"></b></div>
-              </div>
-            </div>
-            <div class="fwarn" id="s-flag"></div>
-            <div class="ferr" id="s-freq-flag">Frequency is 0 — cannot create service credit.</div>
-            <div id="s-form" style="display:none">
-              <div class="divider"></div>
-              <div class="slabel">Credit details</div>
+          <div class="fwarn" id="s-flag"></div>
+          <div class="ferr" id="s-freq-flag">Frequency is 0 — cannot create service credit.</div>
+          <div id="s-bulk-section" style="display:none">
+            <div class="bsum" id="s-bsum"></div>
+            <div class="bwrap"><table><thead><tr><th>Instance ID</th><th>BAN</th><th>Device</th><th>Monthly promotion</th><th>Freq</th><th>Service ID</th><th>Status</th></tr></thead><tbody id="s-btbody"></tbody></table></div>
+          </div>
+          <div id="s-form" style="display:none">
+            <div class="divider"></div>
+            <div class="slabel">Credit details</div>
+            <div id="s-auto-fields">
               <div class="row2">
                 <div class="field"><label>Monthly promotion <span class="abadge">auto</span></label><input id="s-amount" type="number" step="0.01" readonly></div>
                 <div class="field"><label>Frequency <span class="abadge">fixed = 1</span></label><input value="1" readonly></div>
               </div>
-              <div class="row2">
-                <div class="field"><label>Start date</label><input id="s-start" type="date"></div>
-                <div class="field"><label>Alt caller / ticket</label><input id="s-caller" placeholder="e.g. John Doe - TKT123"></div>
-              </div>
-              <button class="btn btn-primary" id="s-sbtn" onclick="submitSingle('s')">Submit service credit</button>
-              <div class="rbox" id="s-res"></div>
             </div>
-          </div>
-          <div id="s-bulk" style="display:none">
-            <div class="slabel">Bulk lookup</div>
-            <div class="field"><label>Client plan instance IDs (one per line)</label><textarea id="s-bids" rows="5" placeholder="802Pl00000GgPNSIA3"></textarea></div>
-            <button class="lbtn" id="s-blbtn" onclick="lookupBulk('s')" style="width:100%;height:auto;padding:10px;margin-bottom:1rem">Look up all</button>
-            <div id="s-bres" style="display:none">
-              <div class="bsum" id="s-bsum"></div>
-              <div class="bwrap"><table><thead><tr><th>Instance ID</th><th>BAN</th><th>Device</th><th>Monthly promotion</th><th>Freq</th><th>Service ID</th><th>Status</th></tr></thead><tbody id="s-btbody"></tbody></table></div>
-              <div class="divider"></div>
-              <div class="row2">
-                <div class="field"><label>Start date (all)</label><input id="s-bstart" type="date"></div>
-                <div class="field"><label>Alt caller (all)</label><input id="s-bcaller" placeholder="e.g. John Doe - TKT123"></div>
-              </div>
-              <button class="btn btn-primary" id="s-bsbtn" onclick="submitBulk('s')">Submit all service credits</button>
-              <button class="btn btn-danger" id="s-stopbtn" style="display:none;margin-top:6px" onclick="bulkStop.s=true;this.textContent='Stopping...';this.disabled=true">Hard Stop</button>
-              <div class="rbox" id="s-bres2"></div>
-              <button class="btn btn-secondary" id="s-dlbtn" style="display:none;margin-top:8px" onclick="downloadCSV('s')">Download results as CSV</button>
+            <div class="row2">
+              <div class="field"><label>Start date</label><input id="s-start" type="date"></div>
+              <div class="field"><label>Alt caller / ticket</label><input id="s-caller" placeholder="e.g. John Doe - TKT123"></div>
             </div>
+            <button class="btn btn-primary" id="s-sbtn" onclick="creditSubmit('s')">Submit service credit</button>
+            <button class="btn btn-danger" id="s-stopbtn" style="display:none;margin-top:6px" onclick="bulkStop.s=true;this.textContent='Stopping...';this.disabled=true">Hard Stop</button>
+            <div class="rbox" id="s-res"></div>
+            <button class="btn btn-secondary" id="s-dlbtn" style="display:none;margin-top:8px" onclick="downloadCSV('s')">Download results as CSV</button>
           </div>
         </div>
       </div>
@@ -417,53 +385,23 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
             <button class="tgl" id="tgl-rc" onclick="setCancelType('rc')">Recurring credit</button>
           </div>
           <div id="sc-sec">
-            <div class="mode-toggle">
-              <button class="mtgl active" onclick="setCancelMode('sc','single')">Single</button>
-              <button class="mtgl" onclick="setCancelMode('sc','bulk')">Bulk</button>
-            </div>
-            <div id="sc-single">
-              <div class="row2">
-                <div class="field"><label>BAN</label><input id="sc-acct" placeholder="e.g. LLAPR-100123456"></div>
-                <div class="field"><label>SCID</label><input id="sc-id" placeholder="e.g. 100001"></div>
-              </div>
-              <div class="field"><label>Alt caller</label><input id="sc-caller" placeholder="e.g. Jane Smith - TKT456"></div>
-              <button class="btn btn-danger" onclick="submitCancelSingle('sc')">Cancel service credit</button>
+            <div class="field"><label>BAN, SCID — one per line</label><textarea id="sc-ids" rows="5" placeholder="LLAPR-100123456,100001"></textarea></div>
+            <div class="field"><label>Alt caller</label><input id="sc-caller" placeholder="e.g. Jane Smith - TKT456"></div>
+            <button class="lbtn" id="sc-sbtn" onclick="cancelSubmit('sc')" style="width:100%;height:auto;padding:10px;margin-bottom:1rem;background:#c53030;color:#fff">Cancel service credit(s)</button>
+            <div id="sc-btable" style="display:none">
+              <div class="bwrap"><table><thead><tr><th>BAN</th><th>SCID</th><th>Status</th></tr></thead><tbody id="sc-btbody"></tbody></table></div>
               <div class="rbox" id="sc-res"></div>
-            </div>
-            <div id="sc-bulk" style="display:none">
-              <div class="field"><label>Alt caller (all)</label><input id="sc-bcaller" placeholder="e.g. Jane Smith - TKT456"></div>
-              <div class="field"><label>BAN,SCID — one per line</label><textarea id="sc-bids" rows="6" placeholder="LLAPR-100123456,100001"></textarea></div>
-              <button class="lbtn" id="sc-bsbtn" onclick="submitCancelBulk('sc')" style="width:100%;height:auto;padding:10px;margin-bottom:1rem;background:#c53030;color:#fff">Cancel all service credits</button>
-              <div id="sc-btable" style="display:none">
-                <div class="bwrap"><table><thead><tr><th>BAN</th><th>SCID</th><th>Status</th></tr></thead><tbody id="sc-btbody"></tbody></table></div>
-                <div class="rbox" id="sc-bres"></div>
-                <button class="btn btn-secondary" id="sc-dlbtn" style="display:none;margin-top:8px" onclick="downloadCancelCSV('sc')">Download results as CSV</button>
-              </div>
+              <button class="btn btn-secondary" id="sc-dlbtn" style="display:none;margin-top:8px" onclick="downloadCancelCSV('sc')">Download results as CSV</button>
             </div>
           </div>
           <div id="rc-sec" style="display:none">
-            <div class="mode-toggle">
-              <button class="mtgl active" onclick="setCancelMode('rc','single')">Single</button>
-              <button class="mtgl" onclick="setCancelMode('rc','bulk')">Bulk</button>
-            </div>
-            <div id="rc-single">
-              <div class="row2">
-                <div class="field"><label>BAN</label><input id="rc-acct" placeholder="e.g. LLAPR-100123456"></div>
-                <div class="field"><label>RCID</label><input id="rc-id" placeholder="e.g. 200001"></div>
-              </div>
-              <div class="field"><label>Alt caller</label><input id="rc-caller" placeholder="e.g. Jane Smith - TKT456"></div>
-              <button class="btn btn-danger" onclick="submitCancelSingle('rc')">Cancel recurring credit</button>
+            <div class="field"><label>BAN, RCID — one per line</label><textarea id="rc-ids" rows="5" placeholder="LLAPR-100123456,200001"></textarea></div>
+            <div class="field"><label>Alt caller</label><input id="rc-caller" placeholder="e.g. Jane Smith - TKT456"></div>
+            <button class="lbtn" id="rc-sbtn" onclick="cancelSubmit('rc')" style="width:100%;height:auto;padding:10px;margin-bottom:1rem;background:#c53030;color:#fff">Cancel recurring credit(s)</button>
+            <div id="rc-btable" style="display:none">
+              <div class="bwrap"><table><thead><tr><th>BAN</th><th>RCID</th><th>Status</th></tr></thead><tbody id="rc-btbody"></tbody></table></div>
               <div class="rbox" id="rc-res"></div>
-            </div>
-            <div id="rc-bulk" style="display:none">
-              <div class="field"><label>Alt caller (all)</label><input id="rc-bcaller" placeholder="e.g. Jane Smith - TKT456"></div>
-              <div class="field"><label>BAN,RCID — one per line</label><textarea id="rc-bids" rows="6" placeholder="LLAPR-100123456,200001"></textarea></div>
-              <button class="lbtn" id="rc-bsbtn" onclick="submitCancelBulk('rc')" style="width:100%;height:auto;padding:10px;margin-bottom:1rem;background:#c53030;color:#fff">Cancel all recurring credits</button>
-              <div id="rc-btable" style="display:none">
-                <div class="bwrap"><table><thead><tr><th>BAN</th><th>RCID</th><th>Status</th></tr></thead><tbody id="rc-btbody"></tbody></table></div>
-                <div class="rbox" id="rc-bres"></div>
-                <button class="btn btn-secondary" id="rc-dlbtn" style="display:none;margin-top:8px" onclick="downloadCancelCSV('rc')">Download results as CSV</button>
-              </div>
+              <button class="btn btn-secondary" id="rc-dlbtn" style="display:none;margin-top:8px" onclick="downloadCancelCSV('rc')">Download results as CSV</button>
             </div>
           </div>
         </div>
@@ -663,14 +601,7 @@ function switchCreditTab(name,btn){
   btn.classList.add('active');
 }
 
-function setMode(pfx,mode){
-  var card=document.getElementById('ct-'+(pfx==='r'?'recurring':'service'));
-  var btns=card.querySelectorAll('.mode-toggle .mtgl');
-  btns[0].classList.toggle('active',mode==='single');
-  btns[1].classList.toggle('active',mode==='bulk');
-  document.getElementById(pfx+'-single').style.display=mode==='single'?'block':'none';
-  document.getElementById(pfx+'-bulk').style.display=mode==='bulk'?'block':'none';
-}
+var creditMode={r:'single',s:'single'};
 
 function setCancelType(t){
   cancelType=t;
@@ -680,13 +611,6 @@ function setCancelType(t){
   document.getElementById('rc-sec').style.display=t==='rc'?'block':'none';
 }
 
-function setCancelMode(type,mode){
-  var btns=document.querySelectorAll('#'+type+'-sec .mode-toggle .mtgl');
-  btns[0].classList.toggle('active',mode==='single');
-  btns[1].classList.toggle('active',mode==='bulk');
-  document.getElementById(type+'-single').style.display=mode==='single'?'block':'none';
-  document.getElementById(type+'-bulk').style.display=mode==='bulk'?'block':'none';
-}
 
 function showResult(id,ok,msg,raw,extra){
   var el=document.getElementById(id);
@@ -932,135 +856,146 @@ function downloadAccountCSV(){
   triggerDownload(lines.join('\n'),'aria_account_details_'+today+'.csv');
 }
 
-function lookupSingle(pfx){
-  var instId=document.getElementById(pfx+'-inst-id').value.trim();
-  if(!instId) return;
+function creditLookup(pfx){
+  var ids=document.getElementById(pfx+'-ids').value.trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  if(!ids.length) return;
   var btn=document.getElementById(pfx+'-lbtn');
   btn.disabled=true;btn.textContent='Looking up...';
-  document.getElementById(pfx+'-form').style.display='none';
   document.getElementById(pfx+'-dcard').classList.remove('show');
   document.getElementById(pfx+'-flag').classList.remove('show');
   document.getElementById(pfx+'-freq-flag').classList.remove('show');
-  apiFetch('/api/lookup',{client_plan_instance_id:instId}).then(function(dev){
-    deviceData[pfx]=dev;
-    document.getElementById(pfx+'-dname').textContent=dev.device_name;
-    document.getElementById(pfx+'-mban').textContent=dev.acct_id;
-    document.getElementById(pfx+'-minst').textContent=dev.inst_id;
-    document.getElementById(pfx+'-mamt').textContent='$'+dev.amount.toFixed(2);
-    if(pfx==='r') document.getElementById(pfx+'-mfreq').textContent=dev.frequency;
-    document.getElementById(pfx+'-msvc').textContent=dev.svc_id;
-    document.getElementById(pfx+'-dcard').classList.add('show');
-    var flagEl=document.getElementById(pfx+'-flag');
-    if(isBadValue(parseFloat(dev.pos15||'0'))){flagEl.textContent='Remaining promotion is $0.00';flagEl.classList.add('show');}
-    var freqBad=pfx==='r'&&isBadValue(dev.frequency);
-    document.getElementById(pfx+'-freq-flag').classList.toggle('show',freqBad);
-    document.getElementById(pfx+'-sbtn').disabled=freqBad;
-    document.getElementById(pfx+'-amount').value=dev.amount.toFixed(2);
-    if(pfx==='r') document.getElementById(pfx+'-freq').value=dev.frequency;
+  document.getElementById(pfx+'-form').style.display='none';
+  document.getElementById(pfx+'-bulk-section').style.display='none';
+  var resEl=document.getElementById(pfx+'-res');
+  if(resEl) resEl.style.display='none';
+
+  if(ids.length===1){
+    // ── Single mode ──────────────────────────────────────
+    creditMode[pfx]='single';
+    var id=ids[0];
+    apiFetch('/api/lookup',{client_plan_instance_id:id}).then(function(dev){
+      deviceData[pfx]=dev;
+      document.getElementById(pfx+'-dname').textContent=dev.device_name;
+      document.getElementById(pfx+'-mban').textContent=dev.acct_id;
+      document.getElementById(pfx+'-minst').textContent=dev.inst_id;
+      document.getElementById(pfx+'-mamt').textContent='$'+dev.amount.toFixed(2);
+      if(pfx==='r') document.getElementById(pfx+'-mfreq').textContent=dev.frequency;
+      document.getElementById(pfx+'-msvc').textContent=dev.svc_id;
+      document.getElementById(pfx+'-dcard').classList.add('show');
+      var flagEl=document.getElementById(pfx+'-flag');
+      if(isBadValue(parseFloat(dev.pos15||'0'))){flagEl.textContent='Remaining promotion is $0.00';flagEl.classList.add('show');}
+      var freqBad=pfx==='r'&&isBadValue(dev.frequency);
+      document.getElementById(pfx+'-freq-flag').classList.toggle('show',freqBad);
+      document.getElementById(pfx+'-auto-fields').style.display='block';
+      document.getElementById(pfx+'-amount').value=dev.amount.toFixed(2);
+      if(pfx==='r') document.getElementById(pfx+'-freq').value=dev.frequency;
+      document.getElementById(pfx+'-start').value=today;
+      var sbtn=document.getElementById(pfx+'-sbtn');
+      sbtn.disabled=freqBad;
+      sbtn.textContent=pfx==='s'?'Submit service credit':'Submit recurring credit';
+      document.getElementById(pfx+'-form').style.display='block';
+    }).catch(function(e){alert(e.message);})
+    .finally(function(){btn.disabled=false;btn.textContent='Look up';});
+
+  }else{
+    // ── Bulk mode ─────────────────────────────────────────
+    creditMode[pfx]='bulk';
+    bulkData[pfx]=[];
+    var tbody=document.getElementById(pfx+'-btbody');
+    tbody.innerHTML='';
+    document.getElementById(pfx+'-bulk-section').style.display='block';
+    document.getElementById(pfx+'-dlbtn').style.display='none';
+    document.getElementById(pfx+'-auto-fields').style.display='none';
     document.getElementById(pfx+'-start').value=today;
-    document.getElementById(pfx+'-form').style.display='block';
-  }).catch(function(e){alert(e.message);})
-  .finally(function(){btn.disabled=false;btn.textContent='Look up';});
+    var sbtn=document.getElementById(pfx+'-sbtn');
+    sbtn.textContent=pfx==='s'?'Submit all service credits':'Submit all recurring credits';
+    ids.forEach(function(id){
+      var tr=document.createElement('tr');tr.id=pfx+'-row-'+id;
+      tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="sb sl">Loading</span></td>';
+      tbody.appendChild(tr);
+    });
+    var ok=0,warn=0,err=0,done=0,idx=0;
+    function runNext(){
+      if(idx>=ids.length) return;
+      var id=ids[idx++];
+      apiFetch('/api/lookup',{client_plan_instance_id:id}).then(function(dev){
+        dev.instanceId=id;bulkData[pfx].push(dev);
+        var tr=document.getElementById(pfx+'-row-'+id);
+        var freqBad=pfx==='r'&&isBadValue(dev.frequency);
+        if(tr){
+          tr.className=freqBad||dev.flag?'flagrow':'';
+          tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td style="font-size:11px">'+dev.acct_id+'</td><td>'+dev.device_name+'</td><td>$'+dev.amount.toFixed(2)+'</td><td>'+(pfx==='s'?1:dev.frequency)+'</td><td style="font-size:11px">'+dev.svc_id+'</td><td><span class="sb '+(freqBad?'se':dev.flag?'sw':'sp')+'">'+(freqBad?'Freq=0':dev.flag?'Flag':'Ready')+'</span></td>';
+        }
+        freqBad||dev.flag?warn++:ok++;
+      }).catch(function(e){
+        err++;
+        var tr=document.getElementById(pfx+'-row-'+id);
+        if(tr) tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="5" style="color:#fc8181">'+e.message+'</td><td><span class="sb se">Error</span></td>';
+      }).finally(function(){
+        done++;
+        document.getElementById(pfx+'-bsum').innerHTML='<div class="scard"><span>'+ids.length+'</span>Total</div><div class="scard"><span style="color:#68d391">'+ok+'</span>Ready</div><div class="scard"><span style="color:#f6ad55">'+warn+'</span>Flagged</div><div class="scard"><span style="color:#fc8181">'+err+'</span>Errors</div>';
+        if(done===ids.length){btn.disabled=false;btn.textContent='Look up';document.getElementById(pfx+'-form').style.display='block';}
+        runNext();
+      });
+    }
+    for(var i=0;i<Math.min(3,ids.length);i++) runNext();
+  }
 }
 
-function submitSingle(pfx){
-  var dev=deviceData[pfx];
+function creditSubmit(pfx){
   var caller=document.getElementById(pfx+'-caller').value.trim();
   var start=document.getElementById(pfx+'-start').value.trim();
-  if(!dev||!caller||!start) return;
+  if(!caller||!start){alert('Fill in start date and alt caller.');return;}
   var btn=document.getElementById(pfx+'-sbtn');
-  btn.disabled=true;btn.textContent='Submitting...';
-  apiFetch('/api/create-credit',{client_plan_instance_id:dev.plan_instance_id,client_acct_id:dev.acct_id,amount:dev.amount,frequency_no:pfx==='s'?1:dev.frequency,initial_credit_date:start,inst_id:dev.inst_id,svc_id:dev.svc_id,alt_caller_id:caller})
-  .then(function(data){var ok=data.error_code===0||data.error_code==='0';showResult(pfx+'-res',ok,data.error_msg||'Done',data,extraIds(data));})
-  .catch(function(e){showResult(pfx+'-res',false,e.message,{});})
-  .finally(function(){btn.disabled=false;btn.textContent=pfx==='s'?'Submit service credit':'Submit recurring credit';});
-}
 
-function lookupBulk(pfx){
-  var ids=document.getElementById(pfx+'-bids').value.trim().split('\n').map(function(s){return s.trim();}).filter(Boolean);
-  if(!ids.length) return;
-  var btn=document.getElementById(pfx+'-blbtn');
-  btn.disabled=true;btn.textContent='Looking up...';
-  bulkData[pfx]=[];
-  var tbody=document.getElementById(pfx+'-btbody');
-  tbody.innerHTML='';
-  document.getElementById(pfx+'-bres').style.display='block';
-  document.getElementById(pfx+'-dlbtn').style.display='none';
-  document.getElementById(pfx+'-bstart').value=today;
-  ids.forEach(function(id){
-    var tr=document.createElement('tr');tr.id=pfx+'-row-'+id;
-    tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="sb sl">Loading</span></td>';
-    tbody.appendChild(tr);
-  });
-  var ok=0,warn=0,err=0,done=0;
-  ids.forEach(function(id){
-    apiFetch('/api/lookup',{client_plan_instance_id:id}).then(function(dev){
-      dev.instanceId=id;bulkData[pfx].push(dev);
-      var tr=document.getElementById(pfx+'-row-'+id);
-      var freqBad=pfx==='r'&&isBadValue(dev.frequency);
-      if(tr){
-        tr.className=freqBad||dev.flag?'flagrow':'';
-        tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td style="font-size:11px">'+dev.acct_id+'</td><td>'+dev.device_name+'</td><td>$'+dev.amount.toFixed(2)+'</td><td>'+(pfx==='s'?1:dev.frequency)+'</td><td style="font-size:11px">'+dev.svc_id+'</td><td><span class="sb '+(freqBad?'se':dev.flag?'sw':'sp')+'">'+(freqBad?'Freq=0':dev.flag?'Flag':'Ready')+'</span></td>';
-      }
-      freqBad||dev.flag?warn++:ok++;
-    }).catch(function(e){
-      err++;
-      var tr=document.getElementById(pfx+'-row-'+id);
-      if(tr) tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="5" style="color:#fc8181">'+e.message+'</td><td><span class="sb se">Error</span></td>';
-    }).finally(function(){
-      done++;
-      if(done===ids.length){
-        document.getElementById(pfx+'-bsum').innerHTML='<div class="scard"><span>'+ids.length+'</span>Total</div><div class="scard"><span style="color:#68d391">'+ok+'</span>Ready</div><div class="scard"><span style="color:#f6ad55">'+warn+'</span>Flagged</div><div class="scard"><span style="color:#fc8181">'+err+'</span>Errors</div>';
-        btn.disabled=false;btn.textContent='Look up all';
-      }
-    });
-  });
-}
+  if(creditMode[pfx]==='single'){
+    var dev=deviceData[pfx];if(!dev) return;
+    btn.disabled=true;btn.textContent='Submitting...';
+    apiFetch('/api/create-credit',{client_plan_instance_id:dev.plan_instance_id,client_acct_id:dev.acct_id,amount:dev.amount,frequency_no:pfx==='s'?1:dev.frequency,initial_credit_date:start,inst_id:dev.inst_id,svc_id:dev.svc_id,alt_caller_id:caller})
+    .then(function(data){var ok=data.error_code===0||data.error_code==='0';showResult(pfx+'-res',ok,data.error_msg||'Done',data,extraIds(data));})
+    .catch(function(e){showResult(pfx+'-res',false,e.message,{});})
+    .finally(function(){btn.disabled=false;btn.textContent=pfx==='s'?'Submit service credit':'Submit recurring credit';});
 
-function submitBulk(pfx){
-  var devs=bulkData[pfx].filter(Boolean);
-  var caller=document.getElementById(pfx+'-bcaller').value.trim();
-  var start=document.getElementById(pfx+'-bstart').value.trim();
-  if(!devs.length||!caller||!start){showResult(pfx+'-bres2',false,'Fill all fields.',{});return;}
-  bulkCallerStart[pfx]={caller:caller,start:start};
-  bulkStop[pfx]=false;
-  var btn=document.getElementById(pfx+'-bsbtn');
-  var stopBtn=document.getElementById(pfx+'-stopbtn');
-  btn.disabled=true;btn.textContent='Submitting...';
-  stopBtn.style.display='block';stopBtn.disabled=false;stopBtn.textContent='Hard Stop';
-  var records=devs.map(function(dev){return{client_plan_instance_id:dev.plan_instance_id,client_acct_id:dev.acct_id,amount:dev.amount,frequency_no:pfx==='s'?1:dev.frequency,initial_credit_date:start,inst_id:dev.inst_id,svc_id:dev.svc_id,alt_caller_id:caller};});
-  var success=0,failed=0,stopped=0;
-  function processNext(i){
-    if(i>=records.length){
-      showResult(pfx+'-bres2',failed===0&&stopped===0,success+' submitted'+(failed?', '+failed+' failed':'')+(stopped?', '+stopped+' stopped':'')+'.', {success:success,failed:failed,stopped:stopped});
-      document.getElementById(pfx+'-dlbtn').style.display='block';
-      btn.disabled=false;btn.textContent=pfx==='s'?'Submit all service credits':'Submit all recurring credits';
-      stopBtn.style.display='none';return;
-    }
-    if(bulkStop[pfx]){
-      var dev=devs[i];dev._status='Stopped';stopped++;
+  }else{
+    var devs=bulkData[pfx].filter(Boolean);
+    if(!devs.length){showResult(pfx+'-res',false,'No records to submit.',{});return;}
+    bulkCallerStart[pfx]={caller:caller,start:start};
+    bulkStop[pfx]=false;
+    var stopBtn=document.getElementById(pfx+'-stopbtn');
+    btn.disabled=true;btn.textContent='Submitting...';
+    stopBtn.style.display='block';stopBtn.disabled=false;stopBtn.textContent='Hard Stop';
+    var records=devs.map(function(dev){return{client_plan_instance_id:dev.plan_instance_id,client_acct_id:dev.acct_id,amount:dev.amount,frequency_no:pfx==='s'?1:dev.frequency,initial_credit_date:start,inst_id:dev.inst_id,svc_id:dev.svc_id,alt_caller_id:caller};});
+    var success=0,failed=0,stopped=0;
+    function processNext(i){
+      if(i>=records.length){
+        showResult(pfx+'-res',failed===0&&stopped===0,success+' submitted'+(failed?', '+failed+' failed':'')+(stopped?', '+stopped+' stopped':'')+'.', {success:success,failed:failed,stopped:stopped});
+        document.getElementById(pfx+'-dlbtn').style.display='block';
+        btn.disabled=false;btn.textContent=pfx==='s'?'Submit all service credits':'Submit all recurring credits';
+        stopBtn.style.display='none';return;
+      }
+      if(bulkStop[pfx]){
+        var dev=devs[i];dev._status='Stopped';stopped++;
+        var tr=dev&&document.getElementById(pfx+'-row-'+dev.instanceId);
+        var badge=tr&&tr.querySelector('.sb');
+        if(badge){badge.className='sb sw';badge.textContent='Stopped';}
+        processNext(i+1);return;
+      }
+      var dev=devs[i];
       var tr=dev&&document.getElementById(pfx+'-row-'+dev.instanceId);
       var badge=tr&&tr.querySelector('.sb');
-      if(badge){badge.className='sb sw';badge.textContent='Stopped';}
-      processNext(i+1);return;
+      if(badge){badge.className='sb sl';badge.textContent='Sending...';}
+      apiFetch('/api/create-credit',records[i]).then(function(r){
+        var ok=r.error_code===0||r.error_code==='0';
+        var cids=[];if(r.credit_id) cids.push('CID:'+r.credit_id);if(r.recurring_credit_no) cids.push('RC:'+r.recurring_credit_no);
+        dev._creditId=r.credit_id||'';dev._rcNo=r.recurring_credit_no||'';
+        dev._status=ok?(cids.length?cids.join(' '):'Done'):(r.error_msg||'Error');
+        if(badge){badge.className='sb '+(ok?'so':'se');badge.textContent=dev._status;}
+        ok?success++:failed++;
+      }).catch(function(){dev._status='Error';if(badge){badge.className='sb se';badge.textContent='Error';}failed++;})
+      .finally(function(){processNext(i+1);});
     }
-    var dev=devs[i];
-    var tr=dev&&document.getElementById(pfx+'-row-'+dev.instanceId);
-    var badge=tr&&tr.querySelector('.sb');
-    if(badge){badge.className='sb sl';badge.textContent='Sending...';}
-    apiFetch('/api/create-credit',records[i]).then(function(r){
-      var ok=r.error_code===0||r.error_code==='0';
-      var ids=[];
-      if(r.credit_id) ids.push('CID:'+r.credit_id);
-      if(r.recurring_credit_no) ids.push('RC:'+r.recurring_credit_no);
-      dev._creditId=r.credit_id||'';dev._rcNo=r.recurring_credit_no||'';
-      dev._status=ok?(ids.length?ids.join(' '):'Done'):(r.error_msg||'Error');
-      if(badge){badge.className='sb '+(ok?'so':'se');badge.textContent=dev._status;}
-      ok?success++:failed++;
-    }).catch(function(){dev._status='Error';if(badge){badge.className='sb se';badge.textContent='Error';}failed++;})
-    .finally(function(){processNext(i+1);});
+    processNext(0);
   }
-  processNext(0);
 }
 
 function downloadCSV(pfx){
@@ -1077,53 +1012,51 @@ function downloadCSV(pfx){
   triggerDownload(lines.join('\n'),'aria_credits_'+(pfx==='r'?'recurring':'service')+'_'+cs.start+'.csv');
 }
 
-function submitCancelSingle(type){
-  var acct=document.getElementById(type+'-acct').value.trim();
-  var id=document.getElementById(type+'-id').value.trim();
+function cancelSubmit(type){
+  var raw=document.getElementById(type+'-ids').value.trim();
   var caller=document.getElementById(type+'-caller').value.trim();
-  if(!acct||!id||!caller){showResult(type+'-res',false,'All fields required.',{});return;}
-  var endpoint=type==='sc'?'/api/cancel-service-credit':'/api/cancel-recurring-credit';
-  var body=type==='sc'?{client_acct_id:acct,scid:id,alt_caller_id:caller}:{client_acct_id:acct,rcid:id,alt_caller_id:caller};
-  apiFetch(endpoint,body).then(function(data){var ok=data.error_code===0||data.error_code==='0';showResult(type+'-res',ok,data.error_msg||'Done',data);})
-  .catch(function(e){showResult(type+'-res',false,e.message,{});});
-}
-
-function submitCancelBulk(type){
-  var caller=document.getElementById(type+'-bcaller').value.trim();
-  var raw=document.getElementById(type+'-bids').value.trim();
-  if(!caller){alert('Enter an alt caller ID.');return;}
-  var lines=raw.split('\n').map(function(l){return l.trim();}).filter(Boolean);
-  if(!lines.length) return;
-  var btn=document.getElementById(type+'-bsbtn');
+  if(!raw){return;}
+  if(!caller){alert('Enter an alt caller / ticket first.');return;}
+  var pairs=raw.split('\n').map(function(l){var p=l.trim().split(',');return{acct:(p[0]||'').trim(),id:(p[1]||'').trim()};}).filter(function(p){return p.acct&&p.id;});
+  if(!pairs.length){alert('Invalid format. Use BAN,'+(type==='sc'?'SCID':'RCID')+' — one per line.');return;}
+  var label=type==='sc'?'Cancel service credit':'Cancel recurring credit';
+  if(!confirm(label+(pairs.length>1?' ('+pairs.length+' records)':'')+' — proceed?')) return;
+  var btn=document.getElementById(type+'-sbtn');
   btn.disabled=true;btn.textContent='Cancelling...';
   var tbody=document.getElementById(type+'-btbody');
   tbody.innerHTML='';
   document.getElementById(type+'-btable').style.display='block';
+  document.getElementById(type+'-res').style.display='none';
   document.getElementById(type+'-dlbtn').style.display='none';
-  var rows=lines.map(function(line){var p=line.split(',');return{acct:(p[0]||'').trim(),id:(p[1]||'').trim()};});
-  rows.forEach(function(r){
-    var tr=document.createElement('tr');tr.id=type+'-crow-'+r.id;
-    tr.innerHTML='<td>'+r.acct+'</td><td style="font-family:monospace">'+r.id+'</td><td><span class="sb sl">Sending</span></td>';
+  pairs.forEach(function(p,i){
+    var tr=document.createElement('tr');tr.id=type+'-crow-'+i;
+    tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+p.acct+'</td><td style="font-family:monospace;font-size:11px">'+p.id+'</td><td><span class="sb sl">Sending…</span></td>';
     tbody.appendChild(tr);
   });
-  var endpoint=type==='sc'?'/api/bulk-cancel-service-credit':'/api/bulk-cancel-recurring-credit';
-  var records=rows.map(function(r){return type==='sc'?{client_acct_id:r.acct,scid:r.id,alt_caller_id:caller}:{client_acct_id:r.acct,rcid:r.id,alt_caller_id:caller};});
-  apiFetch(endpoint,{records:records}).then(function(res){
-    var success=0,failed=0,results=[];
-    (res.results||[]).forEach(function(r,i){
-      var row=rows[i];
-      var tr=document.getElementById(type+'-crow-'+row.id);
-      var badge=tr&&tr.querySelector('.sb');
-      var ok=r.success&&(r.error_code===0||r.error_code==='0');
-      var st=ok?'Done':(r.error_msg||r.error||'Error');
-      if(badge){badge.className='sb '+(ok?'so':'se');badge.textContent=st;}
-      ok?success++:failed++;results.push({acct:row.acct,id:row.id,status:st});
+  var endpoint=type==='sc'?'/api/cancel-service-credit':'/api/cancel-recurring-credit';
+  var success=0,failed=0,done=0,results=[];
+  pairs.forEach(function(p,i){
+    var body=type==='sc'?{client_acct_id:p.acct,scid:p.id,alt_caller_id:caller}:{client_acct_id:p.acct,rcid:p.id,alt_caller_id:caller};
+    apiFetch(endpoint,body).then(function(r){
+      var ok=r.error_code===0||r.error_code==='0';
+      var st=ok?'Done':(r.error_msg||'Error');
+      ok?success++:failed++;results.push({acct:p.acct,id:p.id,status:st});
+      var tr=document.getElementById(type+'-crow-'+i);
+      if(tr){var badge=tr.querySelector('.sb');if(badge){badge.className='sb '+(ok?'so':'se');badge.textContent=st;}}
+    }).catch(function(e){
+      failed++;results.push({acct:p.acct,id:p.id,status:'Error'});
+      var tr=document.getElementById(type+'-crow-'+i);
+      if(tr){var badge=tr.querySelector('.sb');if(badge){badge.className='sb se';badge.textContent='Error';}}
+    }).finally(function(){
+      done++;
+      if(done===pairs.length){
+        showResult(type+'-res',failed===0,success+' cancelled'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+        var dlBtn=document.getElementById(type+'-dlbtn');
+        dlBtn.style.display='block';dlBtn._results=results;dlBtn._caller=caller;
+        btn.disabled=false;btn.textContent=label+'(s)';
+      }
     });
-    showResult(type+'-bres',failed===0,success+' cancelled'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
-    var dlBtn=document.getElementById(type+'-dlbtn');
-    dlBtn.style.display='block';dlBtn._results=results;dlBtn._caller=caller;
-  }).catch(function(e){showResult(type+'-bres',false,e.message,{});})
-  .finally(function(){btn.disabled=false;btn.textContent=type==='sc'?'Cancel all service credits':'Cancel all recurring credits';});
+  });
 }
 
 function switchDeviceTab(name,btn){
@@ -1315,7 +1248,7 @@ function planStatusLookup(){
   document.getElementById('ps-res').style.display='none';
   ids.forEach(function(id){
     var tr=document.createElement('tr');tr.id='ps-row-'+id;
-    tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="3"><span class="sb sl">Loading...</span></td>';
+    tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="8"><span class="sb sl">Loading...</span></td>';
     tbody.appendChild(tr);
   });
   var total=ids.length,ok=0,err=0,done=0;
@@ -1325,22 +1258,29 @@ function planStatusLookup(){
   function runNext(){
     if(idx>=ids.length) return;
     var id=ids[idx++];
-    apiFetch('/api/lookup',{client_plan_instance_id:id})
+    apiFetch('/api/plan-status-lookup',{client_plan_instance_id:id})
     .then(function(d){
-      psResults.push({instance_id:id,acct_id:d.acct_id,plan_name:d.device_name,success:true});
+      psResults.push({instance_id:id,acct_id:d.client_acct_id,plan_name:d.plan_name,success:true});
+      var sc=d.status_label||'';
+      var scColor=sc==='Active'?'#68d391':sc==='Cancelled'?'#fc8181':sc==='Suspended'?'#f6ad55':'#a0aec0';
       var tr=document.getElementById('ps-row-'+id);
       if(tr) tr.innerHTML=
         '<td><input type="checkbox" class="ps-row-chk" data-id="'+id+'" onchange="psToggleRow(\''+id+'\',this.checked)"></td>'
-        +'<td style="font-family:monospace;font-size:11px">'+id+'</td>'
-        +'<td style="font-family:monospace;font-size:11px">'+(d.acct_id||'N/A')+'</td>'
-        +'<td>'+(d.device_name||'N/A')+'</td>'
+        +'<td style="font-family:monospace;font-size:11px">'+(d.client_plan_instance_id||id)+'</td>'
+        +'<td style="font-family:monospace;font-size:11px">'+(d.client_acct_id||'N/A')+'</td>'
+        +'<td style="font-family:monospace;font-size:11px">'+(d.msisdn||'N/A')+'</td>'
+        +'<td>'+(d.user_name||'N/A')+'</td>'
+        +'<td>'+(d.plan_name||'N/A')+'</td>'
+        +'<td style="color:'+scColor+';font-weight:500">'+sc+'</td>'
+        +'<td style="font-size:11px">'+(d.last_bill_date||'N/A')+'</td>'
+        +'<td style="font-size:11px">'+(d.status_date||'N/A')+'</td>'
         +'<td class="ps-result-'+id+'"><span class="sb sl">—</span></td>';
       ok++;
     })
     .catch(function(e){
       psResults.push({instance_id:id,success:false,error:e.message});
       var tr=document.getElementById('ps-row-'+id);
-      if(tr) tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="3" style="color:#fc8181">'+e.message+'</td>';
+      if(tr) tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="8" style="color:#fc8181">'+e.message+'</td>';
       err++;
     })
     .finally(function(){done++;updateSum();if(done===total){btn.disabled=false;btn.textContent='Look up all';}runNext();});
@@ -1413,7 +1353,10 @@ function renderPlanRow(msisdn,d){
     +'<td>'+d.no_of_inst+'</td>'
     +'<td style="color:'+(d.no_of_active_inst>0?'#68d391':'#a0aec0')+'">'+d.no_of_active_inst+'</td>'
     +tdc(d.nso_exist,plNsoColor(d.nso_exist))
-    +'<td style="font-family:monospace;font-size:10px;color:#718096" title="'+instStr+'">'+instPreview+'</td>';
+    +'<td style="font-family:monospace;font-size:10px;color:#718096" title="'+instStr+'">'+instPreview+'</td>'
+    +(d.multiple_active_plans&&d.multiple_active_plans.length>1
+      ?'<td title="Multiple active plans found: '+d.multiple_active_plans.join(', ')+'" style="color:#f6ad55;font-weight:600;cursor:help">⚠ '+d.multiple_active_plans.length+' active</td>'
+      :'<td style="color:#a0aec0">—</td>');
 }
 
 function planLookupRun(){
@@ -1456,11 +1399,14 @@ function planLookupRun(){
 }
 
 function downloadPlanCSV(){
-  var lines=['MSISDN,BAN,Acct Status,Master Plan,Plan Instance ID,Plan Name,Plan Status,Plan Status Date,Device Plan,Device Plan ID,Device Status,Start Date,End Date,Inst Status,# Inst,# Active Inst,NSO Exist,Inst String'];
+  var lines=['MSISDN,BAN,Acct Status,Master Plan,Plan Instance ID,Plan Name,Plan Status,Plan Status Date,Device Plan,Device Plan ID,Device Status,Start Date,End Date,Inst Status,# Inst,# Active Inst,NSO Exist,Inst String,Multi-Plan Warning'];
   planResults.forEach(function(d){
     function esc(v){return'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';}
-    if(d.error){lines.push([d.msisdn,'ERROR','','','','','','','','','','','','','','',d.error,''].map(esc).join(','));}
-    else{lines.push([d.msisdn,d.ban_can,d.account_status,d.master_plan_status,d.client_plan_instance_id,d.plan_name,d.plan_status,d.plan_status_date,d.child_plan1,d.child_client_plan1_id,d.child_plan1_status,d.child_start_date,d.child_end_date,d.inst_status,d.no_of_inst,d.no_of_active_inst,d.nso_exist,d.inst_string].map(esc).join(','));}
+    if(d.error){lines.push([d.msisdn,'ERROR','','','','','','','','','','','','','','',d.error,'',''].map(esc).join(','));}
+    else{
+      var multiWarn=d.multiple_active_plans&&d.multiple_active_plans.length>1?d.multiple_active_plans.join('|'):'';
+      lines.push([d.msisdn,d.ban_can,d.account_status,d.master_plan_status,d.client_plan_instance_id,d.plan_name,d.plan_status,d.plan_status_date,d.child_plan1,d.child_client_plan1_id,d.child_plan1_status,d.child_start_date,d.child_end_date,d.inst_status,d.no_of_inst,d.no_of_active_inst,d.nso_exist,d.inst_string,multiWarn].map(esc).join(','));
+    }
   });
   triggerDownload(lines.join('\n'),'aria_plan_lookup_'+today+'.csv');
 }
