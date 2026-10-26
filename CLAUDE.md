@@ -14,7 +14,7 @@ Aria ITOps Portal is a FastAPI web application for credit management in the Aria
 venv_win\Scripts\python -m uvicorn app:app --host 0.0.0.0 --port 8002 --reload
 
 # Production (Linux server)
-nohup venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8002 > Aria_ITOPS_Portal.log 2>&1 &
+nohup venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8002 --workers 2 > Aria_ITOPS_Portal.log 2>&1 &
 ```
 
 ### Install dependencies
@@ -33,7 +33,7 @@ python create_user.py list
 ```bash
 scp D:\AI_Tools\Aria_ITOPS\Aria_ITOPS_Portal-JJ\static\index.html wasifakram.i@prodapt.com@10.169.101.69:~/Aria_ITOPS_Portal-JJ/static/index.html
 scp D:\AI_Tools\Aria_ITOPS\Aria_ITOPS_Portal-JJ\app.py wasifakram.i@prodapt.com@10.169.101.69:~/Aria_ITOPS_Portal-JJ/app.py
-ssh wasifakram.i@prodapt.com@10.169.101.69 "pkill -f 'uvicorn app:app'; cd ~/Aria_ITOPS_Portal-JJ && nohup venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8002 > Aria_ITOPS_Portal.log 2>&1 &"
+ssh wasifakram.i@prodapt.com@10.169.101.69 "pkill -f 'uvicorn app:app'; cd ~/Aria_ITOPS_Portal-JJ && nohup venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8002 --workers 2 > Aria_ITOPS_Portal.log 2>&1 &"
 ```
 
 ## Local vs Production

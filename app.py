@@ -6,6 +6,7 @@ import secrets
 import json
 import asyncio
 from datetime import datetime
+from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -105,6 +106,24 @@ def require_auth(request: Request):
     if not username:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return username
+
+RUNS_KEEP = 2  # runs kept per report, shared across all users
+
+def get_runs_db():
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS report_runs (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            report   TEXT NOT NULL,
+            title    TEXT NOT NULL,
+            username TEXT NOT NULL,
+            created  TEXT NOT NULL,
+            updated  TEXT NOT NULL,
+            data     TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    return conn
 
 # ── Aria helpers ──────────────────────────────────────────────────────────────
 async def post_aria(payload: dict) -> dict:
@@ -209,6 +228,12 @@ class UpdateDeviceStatusRequest(BaseModel):
     action: str  # "activate_align", "activate", "cancel"
     alt_caller_id: str
     comments: str = ""
+
+class SaveRunRequest(BaseModel):
+    id: Optional[int] = None  # set to update an existing run (e.g. lookup → execute)
+    report: str
+    title: str
+    data: dict             # {"columns": [...], "rows": [[...], ...]}
 
 # ── Auth routes ───────────────────────────────────────────────────────────────
 @app.post("/api/login")
@@ -771,6 +796,48 @@ async def plan_lookup(req: PlanLookupRequest, _=Depends(require_auth)):
         "nso_exist":               nso_exist,
         "multiple_active_plans":   multiple_active_plans,   # non-empty = warning flag
     }
+
+# ── Shared run history ────────────────────────────────────────────────────────
+@app.post("/api/runs")
+async def save_run(req: SaveRunRequest, username: str = Depends(require_auth)):
+    now  = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    data = json.dumps(req.data)
+    conn = get_runs_db()
+    try:
+        run_id = None
+        if req.id is not None:
+            cur = conn.execute(
+                "UPDATE report_runs SET title = ?, updated = ?, data = ? WHERE id = ? AND username = ?",
+                (req.title, now, data, req.id, username))
+            if cur.rowcount:
+                run_id = req.id
+        if run_id is None:
+            cur = conn.execute(
+                "INSERT INTO report_runs (report, title, username, created, updated, data) VALUES (?, ?, ?, ?, ?, ?)",
+                (req.report, req.title, username, now, now, data))
+            run_id = cur.lastrowid
+            conn.execute(
+                "DELETE FROM report_runs WHERE report = ? AND id NOT IN "
+                "(SELECT id FROM report_runs WHERE report = ? ORDER BY id DESC LIMIT ?)",
+                (req.report, req.report, RUNS_KEEP))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": run_id}
+
+@app.get("/api/runs")
+async def list_runs(_=Depends(require_auth)):
+    conn = get_runs_db()
+    try:
+        rows = conn.execute(
+            "SELECT id, report, title, username, created, updated, data FROM report_runs ORDER BY id DESC").fetchall()
+    finally:
+        conn.close()
+    return {"runs": [
+        {"id": r[0], "report": r[1], "title": r[2], "username": r[3],
+         "created": r[4], "updated": r[5], "data": json.loads(r[6])}
+        for r in rows
+    ]}
 
 # ── Serve UI ──────────────────────────────────────────────────────────────────
 app.mount("/static", StaticFiles(directory="static"), name="static")

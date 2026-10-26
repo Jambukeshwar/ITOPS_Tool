@@ -91,6 +91,14 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
 .btn-sf-flag{background:#1a4a8a;color:#fff}
 .btn-sf-clear{background:#2d4a6b;color:#fff}
 .sel-bar-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0}
+.hist{margin-top:1rem}
+.hist:empty{display:none}
+.hist-item{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#0f1117;border:0.5px solid #2d3748;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px}
+.hist-title{font-weight:500;color:#e2e8f0}
+.hist-meta{color:#718096;margin-right:auto}
+.hist-btn{background:#2d3748;color:#e2e8f0;border:0.5px solid #4a5568;padding:4px 12px}
+.hist-view{margin:0 0 10px}
+.hist-view .bwrap{max-height:360px;overflow:auto}
 .footer{text-align:center;padding:1rem;font-size:11px;color:#4a5568;border-top:0.5px solid #2d3748}
 </style>
 </head>
@@ -183,6 +191,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
           </div>
           <div class="rbox" id="ps-res"></div>
         </div>
+        <div class="hist" id="hist-ps"></div>
       </div>
 
       <!-- Device Status Tab -->
@@ -231,6 +240,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
           <div class="rbox" id="ds-res"></div>
           <button class="btn btn-secondary" id="ds-dlbtn" style="display:none;margin-top:8px" onclick="downloadDeviceStatusCSV()">Download results as CSV</button>
         </div>
+        <div class="hist" id="hist-ds"></div>
       </div>
 
       <!-- NSO Tab (placeholder) -->
@@ -331,6 +341,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
             <div class="rbox" id="r-res"></div>
             <button class="btn btn-secondary" id="r-dlbtn" style="display:none;margin-top:8px" onclick="downloadCSV('r')">Download results as CSV</button>
           </div>
+          <div class="hist" id="hist-r"></div>
         </div>
       </div>
 
@@ -373,6 +384,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
             <div class="rbox" id="s-res"></div>
             <button class="btn btn-secondary" id="s-dlbtn" style="display:none;margin-top:8px" onclick="downloadCSV('s')">Download results as CSV</button>
           </div>
+          <div class="hist" id="hist-s"></div>
         </div>
       </div>
 
@@ -393,6 +405,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
               <div class="rbox" id="sc-res"></div>
               <button class="btn btn-secondary" id="sc-dlbtn" style="display:none;margin-top:8px" onclick="downloadCancelCSV('sc')">Download results as CSV</button>
             </div>
+            <div class="hist" id="hist-sc"></div>
           </div>
           <div id="rc-sec" style="display:none">
             <div class="field"><label>BAN, RCID — one per line</label><textarea id="rc-ids" rows="5" placeholder="LLAPR-100123456,200001"></textarea></div>
@@ -403,6 +416,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
               <div class="rbox" id="rc-res"></div>
               <button class="btn btn-secondary" id="rc-dlbtn" style="display:none;margin-top:8px" onclick="downloadCancelCSV('rc')">Download results as CSV</button>
             </div>
+            <div class="hist" id="hist-rc"></div>
           </div>
         </div>
       </div>
@@ -481,6 +495,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
           <div class="rbox" id="acct-bres"></div>
           <button class="btn btn-secondary" id="acct-dlbtn" style="display:none;margin-top:8px" onclick="downloadAccountCSV()">Download results as CSV</button>
         </div>
+        <div class="hist" id="hist-acct"></div>
       </div>
 
       <!-- DC Data Fix -->
@@ -515,6 +530,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
         <div class="rbox" id="dc-res"></div>
         <button class="btn btn-secondary" id="dc-dlbtn" style="display:none;margin-top:8px" onclick="downloadDCCSV()">Download results as CSV</button>
       </div>
+      <div class="hist" id="hist-dc"></div>
     </div>
 
   </div>
@@ -576,6 +592,7 @@ function showApp(username){
   document.getElementById('login-wrap').style.display='none';
   document.getElementById('app-shell').style.display='flex';
   document.getElementById('topbar-username').textContent=username;
+  loadRuns();
 }
 
 function doLogout(){
@@ -593,6 +610,7 @@ function switchPage(name,btn){
   document.getElementById('page-'+name).classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
+  loadRuns();
 }
 
 function switchCreditTab(name,btn){
@@ -642,6 +660,101 @@ function triggerDownload(content,filename){
   a.download=filename;a.click();
 }
 
+// ── Shared run history (last 2 runs per report, visible to all users) ────────
+var runIds={};      // report -> Promise<run id> of this browser's latest run
+var runCache={};    // run id -> run
+var runOpen={};     // run id -> true when its table is expanded
+var RUN_REPORTS=['acct','dc','ps','ds','r','s','sc','rc'];
+
+function escHtml(v){return String(v===null||v===undefined?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// Capture a results table as {columns,rows}; columns with an empty header (checkboxes) are dropped
+function snapTable(sel){
+  var t=document.querySelector(sel);
+  var cols=[],skip={},rows=[];
+  if(!t) return {columns:cols,rows:rows};
+  t.querySelectorAll('thead th').forEach(function(th,i){var n=th.textContent.trim();if(n) cols.push(n); else skip[i]=true;});
+  t.querySelectorAll('tbody tr').forEach(function(tr){
+    var r=[];
+    Array.from(tr.children).forEach(function(td,i){
+      if(skip[i]) return;
+      var inp=td.querySelector('input:not([type=checkbox])');
+      r.push(inp?inp.value:td.textContent.trim());
+    });
+    rows.push(r);
+  });
+  return {columns:cols,rows:rows};
+}
+
+// isUpdate=true overwrites this browser's latest run for the report (e.g. lookup → execute)
+function saveRun(report,title,data,isUpdate){
+  var prev=isUpdate&&runIds[report]?runIds[report]:Promise.resolve(null);
+  runIds[report]=prev.then(function(id){
+    return fetch(API+'/api/runs',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,report:report,title:title,data:data})})
+    .then(function(r){return r.ok?r.json():{id:null};})
+    .then(function(d){loadRuns();return d.id;});
+  }).catch(function(){return null;});
+}
+
+function loadRuns(){
+  fetch(API+'/api/runs',{credentials:'include'})
+  .then(function(r){return r.ok?r.json():{runs:[]};})
+  .then(function(d){
+    var by={};runCache={};
+    d.runs.forEach(function(run){(by[run.report]=by[run.report]||[]).push(run);runCache[run.id]=run;});
+    RUN_REPORTS.forEach(function(rep){renderRuns(rep,by[rep]||[]);});
+  }).catch(function(){});
+}
+
+function renderRuns(report,runs){
+  var el=document.getElementById('hist-'+report);
+  if(!el) return;
+  if(!runs.length){el.innerHTML='';return;}
+  el.innerHTML='<div class="slabel" style="margin-bottom:8px">Recent runs (shared) &nbsp;<a href="#" onclick="loadRuns();return false" style="color:#63b3ed;text-transform:none;letter-spacing:0;font-weight:500">Refresh</a></div>'
+    +runs.map(function(run){
+      var t=new Date(run.updated).toLocaleString();
+      return '<div class="hist-item">'
+        +'<span class="hist-title">'+escHtml(run.title)+'</span>'
+        +'<span class="hist-meta">'+escHtml(run.username)+' · '+escHtml(t)+' · '+run.data.rows.length+' rows</span>'
+        +'<button class="action-btn hist-btn" onclick="toggleRunView('+run.id+')">'+(runOpen[run.id]?'Hide':'View')+'</button>'
+        +'<button class="action-btn hist-btn" onclick="downloadRun('+run.id+')">CSV</button>'
+        +'</div>'
+        +'<div class="hist-view" id="hist-view-'+run.id+'">'+(runOpen[run.id]?runTableHtml(run.data):'')+'</div>';
+    }).join('');
+}
+
+function runTableHtml(data){
+  var n=data.columns.length;
+  return '<div class="bwrap"><table><thead><tr>'
+    +data.columns.map(function(c){return '<th>'+escHtml(c)+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    +data.rows.map(function(r){
+      return '<tr>'+r.map(function(v,i){
+        var span=i===r.length-1&&r.length<n?' colspan="'+(n-i)+'"':'';
+        return '<td'+span+'>'+escHtml(v)+'</td>';
+      }).join('')+'</tr>';
+    }).join('')
+    +'</tbody></table></div>';
+}
+
+function toggleRunView(id){
+  var run=runCache[id];if(!run) return;
+  runOpen[id]=!runOpen[id];
+  if(!runOpen[id]) delete runOpen[id];
+  var el=document.getElementById('hist-view-'+id);
+  if(el) el.innerHTML=runOpen[id]?runTableHtml(run.data):'';
+  var btn=el&&el.previousElementSibling.querySelector('.hist-btn');
+  if(btn) btn.textContent=runOpen[id]?'Hide':'View';
+}
+
+function downloadRun(id){
+  var run=runCache[id];if(!run) return;
+  function esc(v){return'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';}
+  var lines=[run.data.columns.map(esc).join(',')];
+  run.data.rows.forEach(function(r){lines.push(r.map(esc).join(','));});
+  triggerDownload(lines.join('\n'),'aria_'+run.report+'_run'+run.id+'_'+run.created.split('T')[0]+'.csv');
+}
+
 function isBadValue(v){return v===0||v===null||v===undefined||v===''||v==='0'||isNaN(v);}
 
 function toggleSelectAll(checked){
@@ -684,12 +797,16 @@ function applyToSelected(action){
   if(!confirm('Apply '+labels[action]+' to '+selectedBANs.size+' selected account(s)?')) return;
   var toProcess=Array.from(selectedBANs);
   var success=0,failed=0,done=0;
+  function finish(){
+    showResult('acct-bulk-dun-res',failed===0,success+' '+labels[action]+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+    saveRun('acct','Account lookup + '+labels[action]+' · '+caller,snapTable('#acct-btable table'),true);
+  }
   toProcess.forEach(function(ban){
     var d=acctBulkResults.find(function(r){return r.client_acct_id===ban;});
     if(!d||!d.success){
       failed++;done++;
       markRowAction(ban,'Error','se');
-      if(done===toProcess.length) showResult('acct-bulk-dun-res',failed===0,success+' '+labels[action]+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+      if(done===toProcess.length) finish();
       return;
     }
     var endpoint=action==='resume'?'/api/resume-dunning':'/api/update-dunning';
@@ -704,8 +821,7 @@ function applyToSelected(action){
       markRowAction(ban,'Error','se');
     }).finally(function(){
       done++;
-      if(done===toProcess.length)
-        showResult('acct-bulk-dun-res',failed===0,success+' '+labels[action]+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+      if(done===toProcess.length) finish();
     });
   });
 }
@@ -739,8 +855,10 @@ function applyToSelectedSF(flag){
       markRowAction(ban,label+' ✗','se');
     }).finally(function(){
       done++;
-      if(done===toProcess.length)
+      if(done===toProcess.length){
         showResult('acct-bulk-dun-res',failed===0,success+' '+label+(failed?', '+failed+' failed.':' done.'),{success:success,failed:failed});
+        saveRun('acct','Account lookup + SF '+label,snapTable('#acct-btable table'),true);
+      }
     });
   });
 }
@@ -825,6 +943,7 @@ function lookupAccountBulk(){
       showResult('acct-bres',err===0,ok+' accounts loaded'+(err?', '+err+' failed.':'.'),{success:ok,failed:err});
       document.getElementById('acct-dlbtn').style.display='block';
       btn.disabled=false;btn.textContent='Look up all';
+      saveRun('acct','Account lookup',snapTable('#acct-btable table'));
     }
   }
 
@@ -952,8 +1071,13 @@ function creditSubmit(pfx){
     var dev=deviceData[pfx];if(!dev) return;
     btn.disabled=true;btn.textContent='Submitting...';
     apiFetch('/api/create-credit',{client_plan_instance_id:dev.plan_instance_id,client_acct_id:dev.acct_id,amount:dev.amount,frequency_no:pfx==='s'?1:dev.frequency,initial_credit_date:start,inst_id:dev.inst_id,svc_id:dev.svc_id,alt_caller_id:caller})
-    .then(function(data){var ok=data.error_code===0||data.error_code==='0';showResult(pfx+'-res',ok,data.error_msg||'Done',data,extraIds(data));})
-    .catch(function(e){showResult(pfx+'-res',false,e.message,{});})
+    .then(function(data){
+      var ok=data.error_code===0||data.error_code==='0';
+      showResult(pfx+'-res',ok,data.error_msg||'Done',data,extraIds(data));
+      var cids=[];if(data.credit_id) cids.push('CID:'+data.credit_id);if(data.recurring_credit_no) cids.push('RC:'+data.recurring_credit_no);
+      saveSingleCreditRun(pfx,dev,caller,ok?(cids.length?cids.join(' '):'Done'):(data.error_msg||'Error'));
+    })
+    .catch(function(e){showResult(pfx+'-res',false,e.message,{});saveSingleCreditRun(pfx,dev,caller,e.message||'Error');})
     .finally(function(){btn.disabled=false;btn.textContent=pfx==='s'?'Submit service credit':'Submit recurring credit';});
 
   }else{
@@ -971,7 +1095,9 @@ function creditSubmit(pfx){
         showResult(pfx+'-res',failed===0&&stopped===0,success+' submitted'+(failed?', '+failed+' failed':'')+(stopped?', '+stopped+' stopped':'')+'.', {success:success,failed:failed,stopped:stopped});
         document.getElementById(pfx+'-dlbtn').style.display='block';
         btn.disabled=false;btn.textContent=pfx==='s'?'Submit all service credits':'Submit all recurring credits';
-        stopBtn.style.display='none';return;
+        stopBtn.style.display='none';
+        saveRun(pfx,(pfx==='r'?'Recurring':'Service')+' credits · '+caller+' · start '+start,snapTable('#'+pfx+'-bulk-section table'));
+        return;
       }
       if(bulkStop[pfx]){
         var dev=devs[i];dev._status='Stopped';stopped++;
@@ -996,6 +1122,13 @@ function creditSubmit(pfx){
     }
     processNext(0);
   }
+}
+
+function saveSingleCreditRun(pfx,dev,caller,status){
+  saveRun(pfx,(pfx==='r'?'Recurring':'Service')+' credit · '+caller,{
+    columns:['Instance ID','BAN','Device','Monthly promotion','Freq','Service ID','Status'],
+    rows:[[dev.plan_instance_id,dev.acct_id,dev.device_name,'$'+dev.amount.toFixed(2),pfx==='s'?1:dev.frequency,dev.svc_id,status]]
+  });
 }
 
 function downloadCSV(pfx){
@@ -1054,6 +1187,7 @@ function cancelSubmit(type){
         var dlBtn=document.getElementById(type+'-dlbtn');
         dlBtn.style.display='block';dlBtn._results=results;dlBtn._caller=caller;
         btn.disabled=false;btn.textContent=label+'(s)';
+        saveRun(type,label+' · '+caller,snapTable('#'+type+'-btable table'));
       }
     });
   });
@@ -1124,6 +1258,7 @@ function deviceStatusLookup(){
         document.getElementById('ds-lbtn').disabled=false;
         document.getElementById('ds-lbtn').textContent='Look up all';
         dsUpdateSel();
+        saveRun('ds','Device Status lookup',snapTable('#ds-table table'));
       }
       next();
     });
@@ -1217,6 +1352,8 @@ function dsApply(action){
         showResult('ds-res',failed===0,success+' updated'+(failed?', '+failed+' failed.':'.'),{});
         document.getElementById('ds-dlbtn').style.display='block';
         dsUpdateSel();
+        var dsLabels={'activate_align':'Active (Align cycle with MPI)','activate':'Active','cancel':'Cancel'};
+        saveRun('ds','Device Status + '+dsLabels[action]+' · '+caller,snapTable('#ds-table table'),true);
       }
     });
   });
@@ -1283,7 +1420,11 @@ function planStatusLookup(){
       if(tr) tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="8" style="color:#fc8181">'+e.message+'</td>';
       err++;
     })
-    .finally(function(){done++;updateSum();if(done===total){btn.disabled=false;btn.textContent='Look up all';}runNext();});
+    .finally(function(){
+      done++;updateSum();
+      if(done===total){btn.disabled=false;btn.textContent='Look up all';saveRun('ps','Plan Status lookup',snapTable('#ps-table table'));}
+      runNext();
+    });
   }
   for(var i=0;i<Math.min(3,ids.length);i++) runNext();
 }
@@ -1296,13 +1437,17 @@ function psApply(action){
   if(!confirm(labels[action]+' on '+psSelected.size+' selected plan(s)?')) return;
   var toProcess=Array.from(psSelected);
   var success=0,failed=0,done=0;
+  function finish(){
+    showResult('ps-res',failed===0,success+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+    saveRun('ps','Plan Status + '+labels[action]+' · '+caller,snapTable('#ps-table table'),true);
+  }
   toProcess.forEach(function(id){
     var d=psResults.find(function(r){return r.instance_id===id;});
     if(!d||!d.success){
       failed++;done++;
       var cell=document.querySelector('.ps-result-'+id);
       if(cell) cell.innerHTML='<span class="sb se">Error</span>';
-      if(done===toProcess.length) showResult('ps-res',failed===0,success+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+      if(done===toProcess.length) finish();
       return;
     }
     apiFetch('/api/update-plan-status',{client_plan_instance_id:id,client_acct_id:d.acct_id,action:action,alt_caller_id:caller})
@@ -1319,7 +1464,7 @@ function psApply(action){
     })
     .finally(function(){
       done++;
-      if(done===toProcess.length) showResult('ps-res',failed===0,success+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+      if(done===toProcess.length) finish();
     });
   });
 }
@@ -1521,6 +1666,7 @@ function runDC(action){
       var sk=dcResults.filter(function(r){return !dcIsActionable(r.eligibility)&&r.eligibility!=='Lookup Error';}).length;
       updateDCSum(total,el,sk);
       if(lookupDone===total){
+        saveRun('dc',(action==='dc1'?'DC-1 Suspend':'DC-3 Disconnect')+' lookup · '+caller,snapTable('#dc-table table'));
         if(el>0){
           dcPhase='ready';
           var lbl=action==='dc1'?'DC-1 Suspend':'DC-3 Disconnect';
@@ -1596,6 +1742,7 @@ function executeDCActions(action,caller){
         showResult('dc-res',failed===0,success+' '+(action==='dc1'?'suspended':'disconnected')+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed,skipped:skipped});
         dcResetButtons();
         document.getElementById('dc-dlbtn').style.display='block';
+        saveRun('dc',(action==='dc1'?'DC-1 Suspend':'DC-3 Disconnect')+' executed · '+caller,snapTable('#dc-table table'),true);
       }
     });
   });
