@@ -180,6 +180,7 @@ class UpdateDunningRequest(BaseModel):
     action: str
     alt_caller_id: str
     dunning_process_id: str
+    step_offset: int = 0  # -1 = one step before target (used for re-trigger)
 
 class ResumeDunningRequest(BaseModel):
     client_acct_id: str
@@ -477,6 +478,9 @@ async def update_dunning(req: UpdateDunningRequest, _=Depends(require_auth)):
     step = steps.get(req.action)
     if step is None:
         raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")
+    if req.step_offset not in (0, -1):
+        raise HTTPException(status_code=400, detail=f"Invalid step_offset: {req.step_offset}")
+    step += req.step_offset
     return await post_aria({
         **base_payload(),
         "rest_call":               "update_acct_plan_status_m",

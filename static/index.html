@@ -1491,11 +1491,11 @@ function runDC(action){
       else eligibility='Skip: Balance $0'+(settlePending?' (Settlement Pending ≤4d)':'');
     }
     else if(!steps) eligibility='Skip: No Dunning Process';
-    else if(action==='dc1'&&currentStep>=steps.suspend) eligibility='Skip: Already Suspended';
-    else if(action==='dc3'&&currentStep>=steps.disconnect) eligibility='Skip: Already Disconnected';
+    else if(currentStep===targetStep) eligibility=action==='dc1'?'Re-trigger: Already Suspended':'Re-trigger: Already Disconnected';
+    else if(currentStep>targetStep) eligibility='Skip: Beyond Target Step';
     dcResults.push({id:id,data:d,eligibility:eligibility,targetStep:targetStep,result:null});
     var sc=d&&d.account_status==='Active'?'color:#68d391':'color:#fc8181';
-    var ec=eligibility==='Eligible'?'#68d391':eligibility==='Lookup Error'?'#fc8181':'#f6ad55';
+    var ec=eligibility==='Eligible'?'#68d391':dcIsRetrigger(eligibility)?'#63b3ed':eligibility==='Lookup Error'?'#fc8181':'#f6ad55';
     var tr=document.getElementById('dc-row-'+id);
     if(tr) tr.innerHTML=
       '<td style="font-family:monospace;font-size:11px">'+id+'</td>'
@@ -1517,8 +1517,8 @@ function runDC(action){
     .catch(function(){renderLookupRow(id,null);})
     .finally(function(){
       lookupDone++;
-      var el=dcResults.filter(function(r){return r.eligibility==='Eligible';}).length;
-      var sk=dcResults.filter(function(r){return r.eligibility!=='Eligible'&&r.eligibility!=='Lookup Error';}).length;
+      var el=dcResults.filter(function(r){return dcIsActionable(r.eligibility);}).length;
+      var sk=dcResults.filter(function(r){return !dcIsActionable(r.eligibility)&&r.eligibility!=='Lookup Error';}).length;
       updateDCSum(total,el,sk);
       if(lookupDone===total){
         if(el>0){
@@ -1541,10 +1541,13 @@ function runDC(action){
   for(var i=0;i<Math.min(3,ids.length);i++) lookupNext();
 }
 
+function dcIsRetrigger(e){return e.indexOf('Re-trigger')===0;}
+function dcIsActionable(e){return e==='Eligible'||dcIsRetrigger(e);}
+
 function executeDCActions(action,caller){
-  var eligible=dcResults.filter(function(r){return r.eligibility==='Eligible';});
+  var eligible=dcResults.filter(function(r){return dcIsActionable(r.eligibility);});
   // Mark skipped rows
-  dcResults.filter(function(r){return r.eligibility!=='Eligible';}).forEach(function(r){
+  dcResults.filter(function(r){return !dcIsActionable(r.eligibility);}).forEach(function(r){
     r.result=r.eligibility;
     var cell=document.getElementById('dc-act-'+r.id);
     if(cell) cell.innerHTML='<span class="sb sw">'+r.eligibility+'</span>';
@@ -1557,13 +1560,27 @@ function executeDCActions(action,caller){
   }
   var done=0,success=0,failed=0;
   var total=dcResults.length;
-  var skipped=dcResults.filter(function(r){return r.eligibility!=='Eligible';}).length;
+  var skipped=dcResults.filter(function(r){return !dcIsActionable(r.eligibility);}).length;
+  function setStep(r,offset){
+    return apiFetch('/api/update-dunning',{client_acct_id:r.id,action:action==='dc1'?'suspend':'disconnect',alt_caller_id:caller,dunning_process_id:r.data.dunning_process_id,step_offset:offset});
+  }
   eligible.forEach(function(r){
-    apiFetch('/api/update-dunning',{client_acct_id:r.id,action:action==='dc1'?'suspend':'disconnect',alt_caller_id:caller,dunning_process_id:r.data.dunning_process_id})
+    var retrigger=dcIsRetrigger(r.eligibility);
+    // Re-trigger: move to target-1 first, then back to target
+    var call=retrigger
+      ?setStep(r,-1).then(function(res){
+          var ok=res.error_code===0||res.error_code==='0';
+          if(!ok){res.error_msg='Step '+(r.targetStep-1)+' failed: '+(res.error_msg||'Error');return res;}
+          var cell=document.getElementById('dc-act-'+r.id);
+          if(cell) cell.innerHTML='<span class="sb sl">Step '+(r.targetStep-1)+' done, setting '+r.targetStep+'...</span>';
+          return setStep(r,0);
+        })
+      :setStep(r,0);
+    call
     .then(function(res){
       var ok=res.error_code===0||res.error_code==='0';
       ok?success++:failed++;
-      r.result=ok?(action==='dc1'?'Suspended':'Disconnected'):(res.error_msg||'Error');
+      r.result=ok?(retrigger?'Re-triggered ':'')+(action==='dc1'?'Suspended':'Disconnected'):(res.error_msg||'Error');
       var cell=document.getElementById('dc-act-'+r.id);
       if(cell) cell.innerHTML='<span class="sb '+(ok?'so':'se')+'">'+r.result+'</span>';
     })
