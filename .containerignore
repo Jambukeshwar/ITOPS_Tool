@@ -1,0 +1,12 @@
+.git
+.sf
+venv
+venv_win
+__pycache__
+*.pyc
+*.log
+users.db
+data
+account_lookup.py
+generate_hld_doc.py
+*.docx

@@ -17,6 +17,15 @@ venv_win\Scripts\python -m uvicorn app:app --host 0.0.0.0 --port 8002 --reload
 nohup venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8002 --workers 2 > Aria_ITOPS_Portal.log 2>&1 &
 ```
 
+### Run in Podman (EC2)
+```bash
+podman build -t aria-itops .
+podman run -d --name aria-itops -p 8002:8002 --memory 512m --cpus 1 \
+  --userns=keep-id -v ~/aria-data:/app/data:Z --restart=unless-stopped localhost/aria-itops
+podman exec aria-itops python create_user.py add <username> <password>
+```
+`DB_PATH` env var (default `users.db`) sets where the SQLite DB lives; the image sets it to `/app/data/users.db` on the mounted volume so users and run history survive rebuilds.
+
 ### Install dependencies
 ```bash
 pip install -r requirements.txt

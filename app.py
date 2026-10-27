@@ -1,3 +1,4 @@
+import os
 import re
 import httpx
 import sqlite3
@@ -5,7 +6,7 @@ import hashlib
 import secrets
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,7 @@ ARIA_URL       = "https://secure.ariasystems.net/v1/core"
 ARIA_QUERY_URL = "https://secure.ariasystems.net/api/AriaQuery/objects.php"
 CLIENT_NO      = "8100011"   # <-- replace
 AUTH_KEY       = "aNsdrFww7h4EQ4XpUkxhPRyVPkvxFnru"    # <-- replace
-DB_PATH        = "users.db"
+DB_PATH        = os.environ.get("DB_PATH", "users.db")
 # ─────────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Aria ITOps Portal")
@@ -441,6 +442,26 @@ async def bulk_cancel_recurring_credit(req: BulkCancelRecurringRequest, _=Depend
         except Exception as e:
             results.append({"acct_id": record.client_acct_id, "rcid": record.rcid, "success": False, "error": str(e)})
     return {"results": results}
+
+# ── Next bill date (default credit start date) ────────────────────────────────
+@app.post("/api/next-bill-date")
+async def next_bill_date(req: AccountDetailsRequest, _=Depends(require_auth)):
+    uid = req.client_acct_id
+    data = await post_aria({**base_payload(), "rest_call": "get_acct_details_all_m",
+        "client_acct_id": uid, "include_master_plans": "1",
+        "include_supp_plans": "0", "include_billing_groups": "0",
+        "include_payment_methods": "0"})
+    plans = data.get("master_plans_info") or []
+    # Credits are created against MPI = client_acct_id, so prefer that master plan instance
+    plan = next((p for p in plans if uid in (p.get("client_master_plan_instance_id"), p.get("client_plan_instance_id"))),
+                plans[0] if plans else {})
+    nbd = _parse_dt(plan.get("next_bill_date"))
+    if nbd == datetime.min:
+        return {"next_bill_date": plan.get("next_bill_date"), "start_date": None}
+    return {
+        "next_bill_date": nbd.strftime("%Y-%m-%d"),
+        "start_date":     (nbd - timedelta(days=1)).strftime("%Y-%m-%d"),
+    }
 
 # ── Account details ───────────────────────────────────────────────────────────
 @app.post("/api/account-details")

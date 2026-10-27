@@ -91,6 +91,9 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
 .btn-sf-flag{background:#1a4a8a;color:#fff}
 .btn-sf-clear{background:#2d4a6b;color:#fff}
 .sel-bar-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0}
+.sd-btn{height:auto;padding:0 10px;font-size:12px}
+.sd-hint{font-size:11px;color:#718096;margin-top:4px}
+.sd-row{padding:3px 6px;font-size:11px;width:130px}
 .hist{margin-top:1rem}
 .hist:empty{display:none}
 .hist-item{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#0f1117;border:0.5px solid #2d3748;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px}
@@ -321,7 +324,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
           <div class="ferr" id="r-freq-flag">Frequency is 0 — cannot create recurring credit.</div>
           <div id="r-bulk-section" style="display:none">
             <div class="bsum" id="r-bsum"></div>
-            <div class="bwrap"><table><thead><tr><th>Instance ID</th><th>BAN</th><th>Device</th><th>Monthly promotion</th><th>Freq</th><th>Service ID</th><th>Status</th></tr></thead><tbody id="r-btbody"></tbody></table></div>
+            <div class="bwrap"><table><thead><tr><th>Instance ID</th><th>BAN</th><th>Device</th><th>Monthly promotion</th><th>Freq</th><th>Service ID</th><th>Start date</th><th>Status</th></tr></thead><tbody id="r-btbody"></tbody></table></div>
           </div>
           <div id="r-form" style="display:none">
             <div class="divider"></div>
@@ -333,7 +336,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
               </div>
             </div>
             <div class="row2">
-              <div class="field"><label>Start date</label><input id="r-start" type="date"></div>
+              <div class="field"><label>Start date</label><div style="display:flex;gap:6px"><input id="r-start" type="date" onchange="startDateChanged('r')"><button class="lbtn sd-btn" onclick="setStartDate('r','nbd')" title="Master plan next bill date minus 1">Next bill − 1</button><button class="lbtn sd-btn" onclick="setStartDate('r','today')">Today</button></div><div class="sd-hint" id="r-start-hint"></div></div>
               <div class="field"><label>Alt caller / ticket</label><input id="r-caller" placeholder="e.g. John Doe - TKT123"></div>
             </div>
             <button class="btn btn-primary" id="r-sbtn" onclick="creditSubmit('r')">Submit recurring credit</button>
@@ -364,7 +367,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
           <div class="ferr" id="s-freq-flag">Frequency is 0 — cannot create service credit.</div>
           <div id="s-bulk-section" style="display:none">
             <div class="bsum" id="s-bsum"></div>
-            <div class="bwrap"><table><thead><tr><th>Instance ID</th><th>BAN</th><th>Device</th><th>Monthly promotion</th><th>Freq</th><th>Service ID</th><th>Status</th></tr></thead><tbody id="s-btbody"></tbody></table></div>
+            <div class="bwrap"><table><thead><tr><th>Instance ID</th><th>BAN</th><th>Device</th><th>Monthly promotion</th><th>Freq</th><th>Service ID</th><th>Start date</th><th>Status</th></tr></thead><tbody id="s-btbody"></tbody></table></div>
           </div>
           <div id="s-form" style="display:none">
             <div class="divider"></div>
@@ -376,7 +379,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
               </div>
             </div>
             <div class="row2">
-              <div class="field"><label>Start date</label><input id="s-start" type="date"></div>
+              <div class="field"><label>Start date</label><div style="display:flex;gap:6px"><input id="s-start" type="date" onchange="startDateChanged('s')"><button class="lbtn sd-btn" onclick="setStartDate('s','nbd')" title="Master plan next bill date minus 1">Next bill − 1</button><button class="lbtn sd-btn" onclick="setStartDate('s','today')">Today</button></div><div class="sd-hint" id="s-start-hint"></div></div>
               <div class="field"><label>Alt caller / ticket</label><input id="s-caller" placeholder="e.g. John Doe - TKT123"></div>
             </div>
             <button class="btn btn-primary" id="s-sbtn" onclick="creditSubmit('s')">Submit service credit</button>
@@ -993,6 +996,8 @@ function creditLookup(pfx){
     creditMode[pfx]='single';
     var id=ids[0];
     apiFetch('/api/lookup',{client_plan_instance_id:id}).then(function(dev){
+      return fetchNextBill(dev.acct_id,{}).then(function(nb){dev._nextBill=nb.next_bill_date;dev._startDate=nb.start_date;return dev;});
+    }).then(function(dev){
       deviceData[pfx]=dev;
       document.getElementById(pfx+'-dname').textContent=dev.device_name;
       document.getElementById(pfx+'-mban').textContent=dev.acct_id;
@@ -1008,7 +1013,7 @@ function creditLookup(pfx){
       document.getElementById(pfx+'-auto-fields').style.display='block';
       document.getElementById(pfx+'-amount').value=dev.amount.toFixed(2);
       if(pfx==='r') document.getElementById(pfx+'-freq').value=dev.frequency;
-      document.getElementById(pfx+'-start').value=today;
+      setStartDate(pfx,'nbd');
       var sbtn=document.getElementById(pfx+'-sbtn');
       sbtn.disabled=freqBad;
       sbtn.textContent=pfx==='s'?'Submit service credit':'Submit recurring credit';
@@ -1025,15 +1030,17 @@ function creditLookup(pfx){
     document.getElementById(pfx+'-bulk-section').style.display='block';
     document.getElementById(pfx+'-dlbtn').style.display='none';
     document.getElementById(pfx+'-auto-fields').style.display='none';
-    document.getElementById(pfx+'-start').value=today;
+    document.getElementById(pfx+'-start').value='';
+    document.getElementById(pfx+'-start-hint').textContent='Each line uses its own next bill date − 1. You can change each line in the table.';
     var sbtn=document.getElementById(pfx+'-sbtn');
     sbtn.textContent=pfx==='s'?'Submit all service credits':'Submit all recurring credits';
     ids.forEach(function(id){
       var tr=document.createElement('tr');tr.id=pfx+'-row-'+id;
-      tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="sb sl">Loading</span></td>';
+      tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="sb sl">Loading</span></td>';
       tbody.appendChild(tr);
     });
     var ok=0,warn=0,err=0,done=0,idx=0;
+    var nbCache={};  // one get_acct_details_all_m call per BAN, shared by its lines
     function runNext(){
       if(idx>=ids.length) return;
       var id=ids[idx++];
@@ -1043,13 +1050,21 @@ function creditLookup(pfx){
         var freqBad=pfx==='r'&&isBadValue(dev.frequency);
         if(tr){
           tr.className=freqBad||dev.flag?'flagrow':'';
-          tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td style="font-size:11px">'+dev.acct_id+'</td><td>'+dev.device_name+'</td><td>$'+dev.amount.toFixed(2)+'</td><td>'+(pfx==='s'?1:dev.frequency)+'</td><td style="font-size:11px">'+dev.svc_id+'</td><td><span class="sb '+(freqBad?'se':dev.flag?'sw':'sp')+'">'+(freqBad?'Freq=0':dev.flag?'Flag':'Ready')+'</span></td>';
+          tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td style="font-size:11px">'+dev.acct_id+'</td><td>'+dev.device_name+'</td><td>$'+dev.amount.toFixed(2)+'</td><td>'+(pfx==='s'?1:dev.frequency)+'</td><td style="font-size:11px">'+dev.svc_id+'</td><td><input type="date" class="sd-row" id="'+pfx+'-sd-'+id+'" title="Looking up next bill date..."></td><td><span class="sb '+(freqBad?'se':dev.flag?'sw':'sp')+'">'+(freqBad?'Freq=0':dev.flag?'Flag':'Ready')+'</span></td>';
         }
         freqBad||dev.flag?warn++:ok++;
+        return fetchNextBill(dev.acct_id,nbCache).then(function(nb){
+          dev._nextBill=nb.next_bill_date;dev._startDate=nb.start_date;
+          var inp=document.getElementById(pfx+'-sd-'+id);
+          if(!inp) return;
+          if(!inp.value) inp.value=nb.start_date||'';  // keep a date the user already set
+          inp.title=nb.next_bill_date?'Next bill date: '+nb.next_bill_date:'Next bill date not found — pick a date';
+          if(!nb.start_date) inp.style.borderColor='#c05621';
+        });
       }).catch(function(e){
         err++;
         var tr=document.getElementById(pfx+'-row-'+id);
-        if(tr) tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="5" style="color:#fc8181">'+e.message+'</td><td><span class="sb se">Error</span></td>';
+        if(tr) tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="6" style="color:#fc8181">'+e.message+'</td><td><span class="sb se">Error</span></td>';
       }).finally(function(){
         done++;
         document.getElementById(pfx+'-bsum').innerHTML='<div class="scard"><span>'+ids.length+'</span>Total</div><div class="scard"><span style="color:#68d391">'+ok+'</span>Ready</div><div class="scard"><span style="color:#f6ad55">'+warn+'</span>Flagged</div><div class="scard"><span style="color:#fc8181">'+err+'</span>Errors</div>';
@@ -1064,10 +1079,11 @@ function creditLookup(pfx){
 function creditSubmit(pfx){
   var caller=document.getElementById(pfx+'-caller').value.trim();
   var start=document.getElementById(pfx+'-start').value.trim();
-  if(!caller||!start){alert('Fill in start date and alt caller.');return;}
+  if(!caller){alert('Fill in alt caller.');return;}
   var btn=document.getElementById(pfx+'-sbtn');
 
   if(creditMode[pfx]==='single'){
+    if(!start){alert('Fill in start date.');return;}
     var dev=deviceData[pfx];if(!dev) return;
     btn.disabled=true;btn.textContent='Submitting...';
     apiFetch('/api/create-credit',{client_plan_instance_id:dev.plan_instance_id,client_acct_id:dev.acct_id,amount:dev.amount,frequency_no:pfx==='s'?1:dev.frequency,initial_credit_date:start,inst_id:dev.inst_id,svc_id:dev.svc_id,alt_caller_id:caller})
@@ -1075,20 +1091,27 @@ function creditSubmit(pfx){
       var ok=data.error_code===0||data.error_code==='0';
       showResult(pfx+'-res',ok,data.error_msg||'Done',data,extraIds(data));
       var cids=[];if(data.credit_id) cids.push('CID:'+data.credit_id);if(data.recurring_credit_no) cids.push('RC:'+data.recurring_credit_no);
-      saveSingleCreditRun(pfx,dev,caller,ok?(cids.length?cids.join(' '):'Done'):(data.error_msg||'Error'));
+      saveSingleCreditRun(pfx,dev,caller,start,ok?(cids.length?cids.join(' '):'Done'):(data.error_msg||'Error'));
     })
-    .catch(function(e){showResult(pfx+'-res',false,e.message,{});saveSingleCreditRun(pfx,dev,caller,e.message||'Error');})
+    .catch(function(e){showResult(pfx+'-res',false,e.message,{});saveSingleCreditRun(pfx,dev,caller,start,e.message||'Error');})
     .finally(function(){btn.disabled=false;btn.textContent=pfx==='s'?'Submit service credit':'Submit recurring credit';});
 
   }else{
     var devs=bulkData[pfx].filter(Boolean);
     if(!devs.length){showResult(pfx+'-res',false,'No records to submit.',{});return;}
+    var missing=[];
+    devs.forEach(function(dev){
+      var inp=document.getElementById(pfx+'-sd-'+dev.instanceId);
+      dev._usedStart=inp?inp.value.trim():'';
+      if(!dev._usedStart) missing.push(dev.instanceId);
+    });
+    if(missing.length){alert('Start date missing for:\n'+missing.join('\n'));return;}
     bulkCallerStart[pfx]={caller:caller,start:start};
     bulkStop[pfx]=false;
     var stopBtn=document.getElementById(pfx+'-stopbtn');
     btn.disabled=true;btn.textContent='Submitting...';
     stopBtn.style.display='block';stopBtn.disabled=false;stopBtn.textContent='Hard Stop';
-    var records=devs.map(function(dev){return{client_plan_instance_id:dev.plan_instance_id,client_acct_id:dev.acct_id,amount:dev.amount,frequency_no:pfx==='s'?1:dev.frequency,initial_credit_date:start,inst_id:dev.inst_id,svc_id:dev.svc_id,alt_caller_id:caller};});
+    var records=devs.map(function(dev){return{client_plan_instance_id:dev.plan_instance_id,client_acct_id:dev.acct_id,amount:dev.amount,frequency_no:pfx==='s'?1:dev.frequency,initial_credit_date:dev._usedStart,inst_id:dev.inst_id,svc_id:dev.svc_id,alt_caller_id:caller};});
     var success=0,failed=0,stopped=0;
     function processNext(i){
       if(i>=records.length){
@@ -1096,7 +1119,7 @@ function creditSubmit(pfx){
         document.getElementById(pfx+'-dlbtn').style.display='block';
         btn.disabled=false;btn.textContent=pfx==='s'?'Submit all service credits':'Submit all recurring credits';
         stopBtn.style.display='none';
-        saveRun(pfx,(pfx==='r'?'Recurring':'Service')+' credits · '+caller+' · start '+start,snapTable('#'+pfx+'-bulk-section table'));
+        saveRun(pfx,(pfx==='r'?'Recurring':'Service')+' credits · '+caller,snapTable('#'+pfx+'-bulk-section table'));
         return;
       }
       if(bulkStop[pfx]){
@@ -1124,11 +1147,46 @@ function creditSubmit(pfx){
   }
 }
 
-function saveSingleCreditRun(pfx,dev,caller,status){
+function saveSingleCreditRun(pfx,dev,caller,start,status){
   saveRun(pfx,(pfx==='r'?'Recurring':'Service')+' credit · '+caller,{
-    columns:['Instance ID','BAN','Device','Monthly promotion','Freq','Service ID','Status'],
-    rows:[[dev.plan_instance_id,dev.acct_id,dev.device_name,'$'+dev.amount.toFixed(2),pfx==='s'?1:dev.frequency,dev.svc_id,status]]
+    columns:['Instance ID','BAN','Device','Monthly promotion','Freq','Service ID','Start date','Status'],
+    rows:[[dev.plan_instance_id,dev.acct_id,dev.device_name,'$'+dev.amount.toFixed(2),pfx==='s'?1:dev.frequency,dev.svc_id,start,status]]
   });
+}
+
+// Next bill date − 1 for a BAN; cache shares one Aria call across lines of the same BAN
+function fetchNextBill(acct,cache){
+  if(!cache[acct]) cache[acct]=apiFetch('/api/next-bill-date',{client_acct_id:acct}).catch(function(){return{next_bill_date:null,start_date:null};});
+  return cache[acct];
+}
+
+// mode: 'nbd' = next bill date − 1 (per line in bulk), 'today' = today
+function setStartDate(pfx,mode){
+  var hint=document.getElementById(pfx+'-start-hint');
+  if(creditMode[pfx]==='single'){
+    var dev=deviceData[pfx];
+    document.getElementById(pfx+'-start').value=mode==='today'||!dev||!dev._startDate?today:dev._startDate;
+    if(dev) hint.innerHTML=dev._nextBill&&dev._startDate?'Master plan next bill date: '+dev._nextBill:'<span style="color:#f6ad55">Next bill date not found — using today</span>';
+    return;
+  }
+  document.getElementById(pfx+'-start').value=mode==='today'?today:'';
+  bulkData[pfx].forEach(function(dev){
+    var inp=document.getElementById(pfx+'-sd-'+dev.instanceId);
+    if(inp) inp.value=mode==='today'?today:(dev._startDate||'');
+  });
+  hint.textContent=mode==='today'?'All lines set to today. You can change each line in the table.':'Each line uses its own next bill date − 1. You can change each line in the table.';
+}
+
+// Bulk: picking a date in the top field applies it to every line
+function startDateChanged(pfx){
+  if(creditMode[pfx]!=='bulk') return;
+  var v=document.getElementById(pfx+'-start').value;
+  if(!v) return;
+  bulkData[pfx].forEach(function(dev){
+    var inp=document.getElementById(pfx+'-sd-'+dev.instanceId);
+    if(inp) inp.value=v;
+  });
+  document.getElementById(pfx+'-start-hint').textContent='All lines set to '+v+'. You can change each line in the table.';
 }
 
 function downloadCSV(pfx){
@@ -1140,9 +1198,9 @@ function downloadCSV(pfx){
     var instId=cells[0].textContent.trim();
     var dev=bulkData[pfx].find(function(d){return d&&d.instanceId===instId;});
     function esc(v){return'"'+String(v).replace(/"/g,'""')+'"';}
-    lines.push([instId,dev?dev.acct_id:'',dev?dev.device_name:'',dev?'$'+dev.amount.toFixed(2):'',dev?(pfx==='s'?1:dev.frequency):'',dev?dev.svc_id:'',dev?(dev._creditId||''):'',dev?(dev._rcNo||''):'',dev?(dev._status||''):'',cs.caller,cs.start].map(esc).join(','));
+    lines.push([instId,dev?dev.acct_id:'',dev?dev.device_name:'',dev?'$'+dev.amount.toFixed(2):'',dev?(pfx==='s'?1:dev.frequency):'',dev?dev.svc_id:'',dev?(dev._creditId||''):'',dev?(dev._rcNo||''):'',dev?(dev._status||''):'',cs.caller,dev?(dev._usedStart||''):''].map(esc).join(','));
   });
-  triggerDownload(lines.join('\n'),'aria_credits_'+(pfx==='r'?'recurring':'service')+'_'+cs.start+'.csv');
+  triggerDownload(lines.join('\n'),'aria_credits_'+(pfx==='r'?'recurring':'service')+'_'+today+'.csv');
 }
 
 function cancelSubmit(type){

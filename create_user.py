@@ -12,7 +12,7 @@ import sqlite3
 import hashlib
 import os
 
-DB_PATH = "users.db"
+DB_PATH = os.environ.get("DB_PATH", "users.db")
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
