@@ -488,6 +488,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
                   <th>Pay Status</th>
                   <th>Pay Amt</th>
                   <th>Pay Date</th>
+                  <th>PaymentPlan</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -523,6 +524,7 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
                 <th>Dunning Process</th>
                 <th>Current Step</th>
                 <th>Target Step</th>
+                <th>PaymentPlan</th>
                 <th>Eligibility</th>
                 <th>Result</th>
               </tr>
@@ -888,7 +890,7 @@ function lookupAccountBulk(){
   document.getElementById('acct-bres').style.display='none';
   ids.forEach(function(id){
     var tr=document.createElement('tr');tr.id='acct-row-'+id;
-    tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="11"><span class="sb sl">Loading...</span></td>';
+    tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="14"><span class="sb sl">Loading...</span></td>';
     tbody.appendChild(tr);
   });
 
@@ -931,11 +933,12 @@ function lookupAccountBulk(){
         +'<td>'+d.payment_status+'</td>'
         +'<td>'+(d.payment_amount!=='N/A'?'$'+parseFloat(d.payment_amount||0).toFixed(2):'N/A')+'</td>'
         +'<td>'+d.payment_date+'</td>'
+        +'<td style="font-size:11px">'+escHtml(d.payment_plan||'N/A')+'</td>'
         +'<td class="action-cell"><span class="sb sl">—</span></td>';
     } else {
       var errMsg=(d&&(d.detail||d.error))||'Error';
       err++;acctBulkResults.push({client_acct_id:id,success:false,error:errMsg});
-      tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="11" style="color:#fc8181">'+errMsg+'</td>';
+      tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="14" style="color:#fc8181">'+errMsg+'</td>';
     }
     done++;
     document.getElementById('acct-bsum').innerHTML=
@@ -965,14 +968,14 @@ function lookupAccountBulk(){
 }
 
 function downloadAccountCSV(){
-  var lines=['BAN,Account Status,Current Balance,Total Balance,Dunning Process ID,Dunning Status,Dunning Step,Suspend@,Disconnect@,Dunning Degrade Date,Payment Status,Payment Amount,Payment Date'];
+  var lines=['BAN,Account Status,Current Balance,Total Balance,Dunning Process ID,Dunning Status,Dunning Step,Suspend@,Disconnect@,Dunning Degrade Date,Payment Status,Payment Amount,Payment Date,PaymentPlan'];
   acctBulkResults.forEach(function(d){
     function esc(v){return'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';}
     if(d.success===false){
       lines.push([d.client_acct_id,'ERROR','','','','','','','','','',d.error||''].map(esc).join(','));
     } else {
       var s=DUNNING_STEPS[d.dunning_process_id];
-      lines.push([d.client_acct_id,d.account_status,'$'+parseFloat(d.current_balance_due||0).toFixed(2),'$'+parseFloat(d.total_balance_due||0).toFixed(2),d.dunning_process_id,d.dunning_status,d.dunning_step,s?s.suspend:'N/A',s?s.disconnect:'N/A',d.dunning_degrade_date,d.payment_status,d.payment_amount!=='N/A'?'$'+parseFloat(d.payment_amount||0).toFixed(2):'N/A',d.payment_date].map(esc).join(','));
+      lines.push([d.client_acct_id,d.account_status,'$'+parseFloat(d.current_balance_due||0).toFixed(2),'$'+parseFloat(d.total_balance_due||0).toFixed(2),d.dunning_process_id,d.dunning_status,d.dunning_step,s?s.suspend:'N/A',s?s.disconnect:'N/A',d.dunning_degrade_date,d.payment_status,d.payment_amount!=='N/A'?'$'+parseFloat(d.payment_amount||0).toFixed(2):'N/A',d.payment_date,d.payment_plan||''].map(esc).join(','));
     }
   });
   triggerDownload(lines.join('\n'),'aria_account_details_'+today+'.csv');
@@ -1673,7 +1676,7 @@ function runDC(action){
   updateDCSum(total,0,0);
   ids.forEach(function(id){
     var tr=document.createElement('tr');tr.id='dc-row-'+id;
-    tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="7"><span class="sb sl">Looking up...</span></td>';
+    tr.innerHTML='<td style="font-family:monospace;font-size:11px">'+id+'</td><td colspan="8"><span class="sb sl">Looking up...</span></td>';
     tbody.appendChild(tr);
   });
 
@@ -1707,6 +1710,7 @@ function runDC(action){
       +'<td style="font-size:11px">'+(d?(d.dunning_process_id||'N/A'):'N/A')+'</td>'
       +'<td>'+(d?d.dunning_step:'N/A')+'</td>'
       +'<td>'+(targetStep!==null?targetStep:'N/A')+'</td>'
+      +'<td style="font-size:11px">'+escHtml(d?(d.payment_plan||'N/A'):'N/A')+'</td>'
       +'<td style="color:'+ec+';font-weight:500">'+eligibility+'</td>'
       +'<td id="dc-act-'+id+'">—</td>';
   }
@@ -1808,11 +1812,11 @@ function executeDCActions(action,caller){
 
 function downloadDCCSV(){
   var action=dcCurrentAction;
-  var lines=['BANCAN,Acct Status,Balance,Dunning Process,Current Step,Target Step,Eligibility,Result'];
+  var lines=['BANCAN,Acct Status,Balance,Dunning Process,Current Step,Target Step,PaymentPlan,Eligibility,Result'];
   dcResults.forEach(function(r){
     function esc(v){return'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';}
     var d=r.data;
-    lines.push([r.id,d?d.account_status:'Error',d?'$'+parseFloat(d.current_balance_due||0).toFixed(2):'N/A',d?(d.dunning_process_id||'N/A'):'N/A',d?d.dunning_step:'N/A',r.targetStep!==null?r.targetStep:'N/A',r.eligibility,r.result||'Pending'].map(esc).join(','));
+    lines.push([r.id,d?d.account_status:'Error',d?'$'+parseFloat(d.current_balance_due||0).toFixed(2):'N/A',d?(d.dunning_process_id||'N/A'):'N/A',d?d.dunning_step:'N/A',r.targetStep!==null?r.targetStep:'N/A',d?(d.payment_plan||''):'',r.eligibility,r.result||'Pending'].map(esc).join(','));
   });
   triggerDownload(lines.join('\n'),'aria_'+action+'_datafix_'+today+'.csv');
 }

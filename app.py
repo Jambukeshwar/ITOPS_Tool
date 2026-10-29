@@ -475,6 +475,7 @@ async def account_details(req: AccountDetailsRequest, _=Depends(require_auth)):
         "client_acct_id": uid, "include_master_plans": "1",
         "include_supp_plans": "0", "include_billing_groups": "0",
         "include_payment_methods": "0", "plan_limit": "1"})
+    payment_plan = await payment_plan_summary(uid)
 
     # Payment history — most recent record is index 0
     ph = (pay.get("acct_payment_history") or [{}])[0]
@@ -500,7 +501,23 @@ async def account_details(req: AccountDetailsRequest, _=Depends(require_auth)):
         "payment_status":       ph.get("proc_status_text", "N/A"),
         "payment_amount":       ph.get("payment_amount", "N/A"),
         "payment_date":         ph.get("payment_received_date", "N/A"),
+        "payment_plan":         payment_plan,
     }
+
+async def payment_plan_summary(uid: str) -> str:
+    """'no|last due|status' of one plan: the Active plan if any, else the newest. 'None' if the account has none."""
+    try:
+        data = await post_aria({**base_payload(), "rest_call": "get_payment_plan_list_m",
+            "client_acct_id": uid, "include_all_statuses": "true"})
+    except HTTPException:
+        return "Error"
+    pps = data.get("payment_plan_list") or []
+    if not pps:
+        return "None"
+    pps.sort(key=lambda p: (p.get("payment_plan_create_date") or "", p.get("payment_plan_no") or 0), reverse=True)
+    active = [p for p in pps if (p.get("payment_plan_status") or "").lower() == "active"]
+    p = (active or pps)[0]
+    return f"{p.get('payment_plan_no') or 'N/A'}|{p.get('last_payment_plan_due_date') or 'N/A'}|{p.get('payment_plan_status') or 'N/A'}"
 
 @app.post("/api/bulk-account-details")
 async def bulk_account_details(req: BulkAccountDetailsRequest, _=Depends(require_auth)):
