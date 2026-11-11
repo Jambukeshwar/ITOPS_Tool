@@ -566,8 +566,14 @@ var DUNNING_STEPS = {
   "High_Risk_ACH_15":{suspend:8,final_suspend:13,disconnect:14},
   "High_Risk_ACH_5":{suspend:10,final_suspend:15,disconnect:16},
   "High_Risk_Credit_Card_15":{suspend:10,final_suspend:15,disconnect:16},
-  "High_Risk_Net_Terms":{suspend:6,final_suspend:11,disconnect:12}
+  "High_Risk_Net_Terms":{suspend:6,final_suspend:11,disconnect:12},
+  "Net_Terms":{suspend:10,final_suspend:15,disconnect:16},
+  "Autopay_ACH":{suspend:12,final_suspend:18,disconnect:19},
+  "Autopay_Credit_Card":{suspend:14,final_suspend:19,disconnect:20}
 };
+// Special dunning processes — no suspend/disconnect steps (mirrors SPECIAL_DUNNING in app.py)
+var SPECIAL_DUNNING = ["Dunning_process_manual_cancelation","Dunning_process_Payment_Plan",
+  "Government","Government_Case","Large_Business_Wholesale","Large_Business_Wholesale_Case"];
 
 window.addEventListener('DOMContentLoaded',function(){
   fetch(API+'/api/me',{credentials:'include'}).then(function(r){
@@ -913,8 +919,9 @@ function lookupAccountBulk(){
       var stepColor=disconnectPast?'color:#fc8181':suspendPast?'color:#f6ad55':'color:#e2e8f0';
       var stepSuffix=disconnectPast?' <span style="font-size:10px;color:#fc8181">(disc past)</span>':suspendPast?' <span style="font-size:10px;color:#f6ad55">(susp past)</span>':'';
       var rowBg=disconnectPast?'background:#2d1a1a':suspendPast?'background:#2d1a00':'';
-      var suspStep=steps?steps.suspend:'N/A';
-      var discStep=steps?steps.disconnect:'N/A';
+      var special=SPECIAL_DUNNING.indexOf(d.dunning_process_id)!==-1;
+      var suspStep=steps?steps.suspend:special?'Special':'N/A';
+      var discStep=steps?steps.disconnect:special?'Special':'N/A';
       var suspStepColor=steps&&currentStep>=steps.suspend?'color:#f6ad55':'color:#a0aec0';
       var discStepColor=steps&&currentStep>=steps.disconnect?'color:#fc8181':'color:#a0aec0';
       tr.setAttribute('style',rowBg);
@@ -1686,7 +1693,10 @@ function runDC(action){
     var balance=d?parseFloat(d.current_balance_due||0):0;
     var targetStep=steps?(action==='dc1'?steps.suspend:steps.disconnect):null;
     var eligibility='Eligible';
+    var ppStatus=d?((d.payment_plan||'').split('|')[2]||'').toLowerCase():'';
     if(!d) eligibility='Lookup Error';
+    else if(ppStatus==='active') eligibility='Skip: Active Payment Plan';
+    else if(d.payment_plan==='Error') eligibility='Skip: Payment Plan Check Failed';
     else if(balance<=0){
       var payStatus=d.payment_status||'';
       var payDate=d.payment_date||'';
@@ -1696,6 +1706,7 @@ function runDC(action){
       if(settlePending&&settleAge>4) eligibility='Eligible';
       else eligibility='Skip: Balance $0'+(settlePending?' (Settlement Pending ≤4d)':'');
     }
+    else if(SPECIAL_DUNNING.indexOf(d.dunning_process_id)!==-1) eligibility='Skip: Special Dunning Process';
     else if(!steps) eligibility='Skip: No Dunning Process';
     else if(currentStep===targetStep) eligibility=action==='dc1'?'Re-trigger: Already Suspended':'Re-trigger: Already Disconnected';
     else if(currentStep>targetStep) eligibility='Skip: Beyond Target Step';

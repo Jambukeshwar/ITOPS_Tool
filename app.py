@@ -45,6 +45,15 @@ DUNNING_STEPS = {
     "High_Risk_ACH_5":           {"suspend": 10, "final_suspend": 15, "disconnect": 16},
     "High_Risk_Credit_Card_15":  {"suspend": 10, "final_suspend": 15, "disconnect": 16},
     "High_Risk_Net_Terms":       {"suspend":  6, "final_suspend": 11, "disconnect": 12},
+    "Net_Terms":                 {"suspend": 10, "final_suspend": 15, "disconnect": 16},
+    "Autopay_ACH":               {"suspend": 12, "final_suspend": 18, "disconnect": 19},
+    "Autopay_Credit_Card":       {"suspend": 14, "final_suspend": 19, "disconnect": 20},
+}
+
+# Special dunning processes — no suspend/disconnect steps; portal never moves these
+SPECIAL_DUNNING = {
+    "Dunning_process_manual_cancelation", "Dunning_process_Payment_Plan",
+    "Government", "Government_Case", "Large_Business_Wholesale", "Large_Business_Wholesale_Case",
 }
 
 # ── DB ────────────────────────────────────────────────────────────────────────
@@ -535,6 +544,8 @@ async def bulk_account_details(req: BulkAccountDetailsRequest, _=Depends(require
 # ── Update dunning ────────────────────────────────────────────────────────────
 @app.post("/api/update-dunning")
 async def update_dunning(req: UpdateDunningRequest, _=Depends(require_auth)):
+    if req.dunning_process_id in SPECIAL_DUNNING:
+        raise HTTPException(status_code=400, detail=f"Special dunning process: {req.dunning_process_id} — no suspend/disconnect step")
     steps = DUNNING_STEPS.get(req.dunning_process_id)
     if not steps:
         raise HTTPException(status_code=400, detail=f"Unknown dunning process: {req.dunning_process_id}")

@@ -83,7 +83,7 @@ SF_URL         = "https://cwc.my.salesforce.com"   # Salesforce instance
 SF_API         = f"{SF_URL}/services/data/v57.0"
 ```
 
-`DUNNING_STEPS` dict maps 12 dunning process names (Low/Medium/High Risk × ACH_15/ACH_5/Credit_Card_15/Net_Terms) to their `suspend`/`final_suspend`/`disconnect` step numbers. The frontend mirrors this same dict for UI color-coding (Susp@/Disc@ columns).
+`DUNNING_STEPS` dict maps 15 dunning process names (Low/Medium/High Risk × ACH_15/ACH_5/Credit_Card_15/Net_Terms, plus Net_Terms, Autopay_ACH, Autopay_Credit_Card) to their `suspend`/`final_suspend`/`disconnect` step numbers. The frontend mirrors this same dict for UI color-coding (Susp@/Disc@ columns). `SPECIAL_DUNNING` (app.py + index.html) lists special processes with no steps — DC Data Fix skips them as "Skip: Special Dunning Process" and `/api/update-dunning` rejects them. DC Data Fix also skips accounts with an Active payment plan (`payment_plan` status from `get_payment_plan_list_m`) before any other check.
 
 ## API Surface
 
