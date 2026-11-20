@@ -101,6 +101,7 @@ All routes require session cookie auth except `/api/login`.
 | POST | `/api/cancel-recurring-credit` | Cancel a recurring credit |
 | POST | `/api/bulk-cancel-service-credit` | Bulk cancel service credits |
 | POST | `/api/bulk-cancel-recurring-credit` | Bulk cancel recurring credits |
+| POST | `/api/get-credits` | `{ids:[client_plan_instance_id]}` → device details + matching RCs (`get_recurring_credit_info_m`, cancelled dropped) and unapplied SCs (`get_unapplied_service_credits_m`); RC/SC fetched once per BAN. Credits matched by `client_plan_instance_id` (RC: `recurring_credits_details[].eligible_plan_instance_details[].client_plan_instance_id`) |
 | POST | `/api/account-details` | Account balance, payment history, dunning info |
 | POST | `/api/bulk-account-details` | Bulk account details (concurrency 3 via `asyncio.Semaphore`) |
 | POST | `/api/update-dunning` | Suspend or disconnect — looks up step from `DUNNING_STEPS` |

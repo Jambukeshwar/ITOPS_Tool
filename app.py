@@ -300,6 +300,7 @@ async def lookup_device(req: LookupRequest, _=Depends(require_auth)):
     return {
         "acct_id":          d.get("client_acct_id"),
         "plan_instance_id": d.get("client_plan_instance_id"),
+        "plan_instance_no": d.get("plan_instance_no"),
         "device_name":      p[6] if len(p) > 6 else d.get("plan_name", "Unknown"),
         "inst_id":          p[5] if len(p) > 5 else "",
         "amount":           sf(11),
@@ -450,6 +451,119 @@ async def bulk_cancel_recurring_credit(req: BulkCancelRecurringRequest, _=Depend
             results.append({"acct_id": record.client_acct_id, "rcid": record.rcid, "success": True, **result})
         except Exception as e:
             results.append({"acct_id": record.client_acct_id, "rcid": record.rcid, "success": False, "error": str(e)})
+    return {"results": results}
+
+# ── Get credits (RC + unapplied SC per device) ────────────────────────────────
+class GetCreditsRequest(BaseModel):
+    ids: list[str]
+
+def _first_list(data: dict, *keys):
+    for k in keys:
+        if isinstance(data.get(k), list):
+            return data[k]
+    return next((v for v in data.values() if isinstance(v, list) and v and isinstance(v[0], dict)), [])
+
+def _pick(d: dict, *keys):
+    for k in keys:
+        if d.get(k) not in (None, ""):
+            return d.get(k)
+    return None
+
+def _cpi_values(obj):
+    """All client_plan_instance_id values in obj, at any depth
+    (RC: eligible_plan_instance_details[].client_plan_instance_id)."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == "client_plan_instance_id" and v:
+                yield str(v).strip()
+            else:
+                yield from _cpi_values(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _cpi_values(v)
+
+def _credit_matches(c: dict, dev: dict) -> bool:
+    cpi = str(dev.get("plan_instance_id") or "").strip()
+    return bool(cpi) and cpi in set(_cpi_values(c))
+
+def _rc_state(label: str) -> str:
+    s = (label or "").lower()
+    if s.startswith("cancel"):  return "cancelled"
+    if s.startswith("entered"): return "scheduled"
+    if "incomplete" in s:       return "active"
+    if "complete" in s:         return "completed"
+    return "other"
+
+async def _acct_credits(acct: str) -> dict:
+    out = {"rc": [], "sc": [], "rc_error": None, "sc_error": None}
+    for kind, call, keys in (("rc", "get_recurring_credit_info_m", ("recurring_credits_details", "recurring_credit_info")),
+                             ("sc", "get_unapplied_service_credits_m", ("unapplied_service_credits_details", "unapplied_service_credits"))):
+        try:
+            d = await post_aria({**base_payload(), "rest_call": call, "client_acct_id": acct})
+            if d.get("error_code") not in (0, "0"):
+                out[kind + "_error"] = d.get("error_msg") or f"error {d.get('error_code')}"
+            else:
+                out[kind] = _first_list(d, *keys)
+        except HTTPException as e:
+            out[kind + "_error"] = str(e.detail)
+    return out
+
+@app.post("/api/get-credits")
+async def get_credits(req: GetCreditsRequest, _=Depends(require_auth)):
+    ids = [i.strip() for i in req.ids if i.strip()]
+    sem = asyncio.Semaphore(3)
+
+    async def look(i):
+        async with sem:
+            try:
+                return await lookup_device(LookupRequest(client_plan_instance_id=i), _)
+            except HTTPException as e:
+                return {"error": str(e.detail)}
+    devs = await asyncio.gather(*[look(i) for i in ids])
+
+    # RC/SC calls once per account, even if several devices share a BAN
+    accts = sorted({d["acct_id"] for d in devs if "error" not in d and d.get("acct_id")})
+    async def acct_job(a):
+        async with sem:
+            return a, await _acct_credits(a)
+    credits = dict(await asyncio.gather(*[acct_job(a) for a in accts]))
+
+    results = []
+    for i, dev in zip(ids, devs):
+        if "error" in dev:
+            results.append({"id": i, "error": dev["error"]})
+            continue
+        ac = credits.get(dev.get("acct_id"), {"rc": [], "sc": [], "rc_error": "No account", "sc_error": "No account"})
+        rcs = []
+        for c in ac["rc"]:
+            if not _credit_matches(c, dev):
+                continue
+            label = _pick(c, "credit_status_label", "status_label") or ""
+            state = _rc_state(label)
+            if state == "cancelled":
+                continue   # cancelled RC = no credit
+            rcs.append({
+                "state": state, "label": label,
+                "no": _pick(c, "recurring_credit_no_2", "recurring_credit_no"),
+                "amount": _pick(c, "credit_amount", "amount"),
+                "first_credit_date": _pick(c, "first_credit_date"),
+                "next_credit_date": _pick(c, "next_credit_date"),
+                "credits_remaining": _pick(c, "credits_remaining"),
+                "comments": _pick(c, "comments"),
+            })
+        order = {"active": 0, "completed": 1, "other": 2, "scheduled": 3}
+        rcs.sort(key=lambda r: order.get(r["state"], 9))
+        scs = [{
+            "no": _pick(c, "credit_id", "service_credit_no", "credit_no"),
+            "amount": _pick(c, "amount_left_to_apply", "initial_amount", "amount"),
+            "date": _pick(c, "create_date", "initial_credit_date", "created_date"),
+            "comments": _pick(c, "comments", "reason_text"),
+        } for c in ac["sc"] if _credit_matches(c, dev)]
+        results.append({
+            "id": i, "device": dev, "rc": rcs, "sc": scs,
+            "rc_error": ac["rc_error"], "sc_error": ac["sc_error"],
+            "acct_rc_total": len(ac["rc"]), "acct_sc_total": len(ac["sc"]),
+        })
     return {"results": results}
 
 # ── Next bill date (default credit start date) ────────────────────────────────

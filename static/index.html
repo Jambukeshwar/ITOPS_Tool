@@ -77,6 +77,9 @@ tr.selected-row td{background:#1a2a1a !important}
 .sp{background:#1e2a3a;color:#63b3ed}.so{background:#1c3a2a;color:#68d391}
 .se{background:#2d1a1a;color:#fc8181}.sw{background:#2d1a00;color:#f6ad55}
 .sl{background:#2d3748;color:#a0aec0}
+th.gc-rc{color:#b794f4;background:#1c1830}th.gc-sc{color:#4fd1c5;background:#132626}
+tr.gc-dev td{border-top:0.5px solid #2d3748}tr.gc-sub td{background:#121a26}
+.gc-dim{color:#4a5568}
 .bsum{display:flex;gap:12px;margin-bottom:1rem;flex-wrap:wrap}
 .scard{background:#0f1117;border:0.5px solid #2d3748;border-radius:8px;padding:8px 14px;font-size:12px;color:#718096}
 .scard span{font-size:16px;font-weight:500;display:block;color:#e2e8f0}
@@ -303,6 +306,28 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
         <button class="mtgl active" style="flex:1;padding:10px;font-size:13px" onclick="switchCreditTab('recurring',this)">+ Recurring credit</button>
         <button class="mtgl" style="flex:1;padding:10px;font-size:13px" onclick="switchCreditTab('service',this)">+ Service credit</button>
         <button class="mtgl" style="flex:1;padding:10px;font-size:13px" onclick="switchCreditTab('cancel',this)">Cancel credit</button>
+        <button class="mtgl" style="flex:1;padding:10px;font-size:13px" onclick="switchCreditTab('get',this)">Get credits</button>
+      </div>
+
+      <!-- Get credits -->
+      <div id="ct-get" style="display:none">
+        <div class="card">
+          <div class="field"><label>Client plan instance IDs (one per line)</label><textarea id="gc-ids" rows="4" placeholder="802Pl00000GgPNSIA3"></textarea></div>
+          <div style="display:flex;gap:8px">
+            <button class="lbtn" id="gc-btn" onclick="getCredits()" style="flex:1;height:auto;padding:10px">Get credits</button>
+            <button class="lbtn" id="gc-dlbtn" onclick="downloadGetCreditsCSV()" style="height:auto;padding:10px;display:none">Download CSV</button>
+          </div>
+          <div class="ferr" id="gc-err" style="margin-top:1rem"></div>
+          <div id="gc-out" style="display:none;margin-top:1rem">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem" id="gc-summary"></div>
+            <div class="bwrap"><table id="gc-table" style="white-space:nowrap"><thead><tr>
+              <th>Client plan ID</th><th>BAN</th><th>Device</th><th>INST ID</th><th>Monthly promo</th><th>Rem. promo</th><th>Freq</th>
+              <th class="gc-rc">RC count</th><th class="gc-rc">RC no</th><th class="gc-rc">RC status</th><th class="gc-rc">RC amount</th><th class="gc-rc">First credit</th><th class="gc-rc">Next credit</th><th class="gc-rc">RC rem.</th><th class="gc-rc">RC comments</th>
+              <th class="gc-sc">SC count</th><th class="gc-sc">SC no</th><th class="gc-sc">SC amount</th><th class="gc-sc">SC comments</th>
+            </tr></thead><tbody id="gc-tbody"></tbody></table></div>
+          </div>
+          <div class="hist" id="hist-gc"></div>
+        </div>
       </div>
 
       <!-- Recurring -->
@@ -544,7 +569,12 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
 
 <script>
 var API = window.location.origin;
-var today = new Date().toISOString().split('T')[0];
+// Today in AST (Puerto Rico, UTC-4, no DST) regardless of the user's PC timezone (e.g. India team).
+// Recomputed on every call so a tab left open overnight stays correct.
+function todayStr(){
+  try{return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Puerto_Rico',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
+  catch(e){return new Date(Date.now()-4*36e5).toISOString().split('T')[0];}
+}
 var cancelType = 'sc';
 var deviceData = {r:null,s:null};
 var bulkData = {r:[],s:[]};
@@ -625,7 +655,7 @@ function switchPage(name,btn){
 }
 
 function switchCreditTab(name,btn){
-  ['recurring','service','cancel'].forEach(function(n){document.getElementById('ct-'+n).style.display=n===name?'block':'none';});
+  ['recurring','service','cancel','get'].forEach(function(n){document.getElementById('ct-'+n).style.display=n===name?'block':'none';});
   btn.parentElement.querySelectorAll('.mtgl').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
 }
@@ -675,7 +705,7 @@ function triggerDownload(content,filename){
 var runIds={};      // report -> Promise<run id> of this browser's latest run
 var runCache={};    // run id -> run
 var runOpen={};     // run id -> true when its table is expanded
-var RUN_REPORTS=['acct','dc','ps','ds','r','s','sc','rc'];
+var RUN_REPORTS=['acct','dc','ps','ds','r','s','sc','rc','gc'];
 
 function escHtml(v){return String(v===null||v===undefined?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
@@ -985,7 +1015,7 @@ function downloadAccountCSV(){
       lines.push([d.client_acct_id,d.account_status,'$'+parseFloat(d.current_balance_due||0).toFixed(2),'$'+parseFloat(d.total_balance_due||0).toFixed(2),d.dunning_process_id,d.dunning_status,d.dunning_step,s?s.suspend:'N/A',s?s.disconnect:'N/A',d.dunning_degrade_date,d.payment_status,d.payment_amount!=='N/A'?'$'+parseFloat(d.payment_amount||0).toFixed(2):'N/A',d.payment_date,d.payment_plan||''].map(esc).join(','));
     }
   });
-  triggerDownload(lines.join('\n'),'aria_account_details_'+today+'.csv');
+  triggerDownload(lines.join('\n'),'aria_account_details_'+todayStr()+'.csv');
 }
 
 function creditLookup(pfx){
@@ -1175,14 +1205,14 @@ function setStartDate(pfx,mode){
   var hint=document.getElementById(pfx+'-start-hint');
   if(creditMode[pfx]==='single'){
     var dev=deviceData[pfx];
-    document.getElementById(pfx+'-start').value=mode==='today'||!dev||!dev._startDate?today:dev._startDate;
+    document.getElementById(pfx+'-start').value=mode==='today'||!dev||!dev._startDate?todayStr():dev._startDate;
     if(dev) hint.innerHTML=dev._nextBill&&dev._startDate?'Master plan next bill date: '+dev._nextBill:'<span style="color:#f6ad55">Next bill date not found — using today</span>';
     return;
   }
-  document.getElementById(pfx+'-start').value=mode==='today'?today:'';
+  document.getElementById(pfx+'-start').value=mode==='today'?todayStr():'';
   bulkData[pfx].forEach(function(dev){
     var inp=document.getElementById(pfx+'-sd-'+dev.instanceId);
-    if(inp) inp.value=mode==='today'?today:(dev._startDate||'');
+    if(inp) inp.value=mode==='today'?todayStr():(dev._startDate||'');
   });
   hint.textContent=mode==='today'?'All lines set to today. You can change each line in the table.':'Each line uses its own next bill date − 1. You can change each line in the table.';
 }
@@ -1199,6 +1229,87 @@ function startDateChanged(pfx){
   document.getElementById(pfx+'-start-hint').textContent='All lines set to '+v+'. You can change each line in the table.';
 }
 
+// ── Get credits: one line per device (RC + SC); extra line per additional / scheduled RC ──
+var GC_BADGE={active:['so','Active'],scheduled:['sp','Scheduled'],completed:['sl','Completed'],other:['sw','']};
+function gcDate(v){return v?String(v).split(/[ T]/)[0]:'—';}
+function gcMoney(v){var n=parseFloat(v);return isNaN(n)?'—':'$'+n.toFixed(2);}
+
+function getCredits(){
+  var ids=document.getElementById('gc-ids').value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  var err=document.getElementById('gc-err'),btn=document.getElementById('gc-btn');
+  err.classList.remove('show');
+  if(!ids.length){err.textContent='Enter at least one client plan instance ID.';err.classList.add('show');return;}
+  btn.disabled=true;btn.textContent='Getting credits for '+ids.length+' device(s)...';
+  document.getElementById('gc-out').style.display='block';
+  document.getElementById('gc-summary').innerHTML='';
+  document.getElementById('gc-tbody').innerHTML='<tr><td colspan="19" style="color:#718096">Loading...</td></tr>';
+  document.getElementById('gc-dlbtn').style.display='none';
+  apiFetch('/api/get-credits',{ids:ids}).then(function(d){
+    renderGetCredits(d.results);
+    saveRun('gc','Get credits — '+ids.length+' device(s)',snapTable('#gc-table'));
+  }).catch(function(e){
+    document.getElementById('gc-tbody').innerHTML='';
+    err.textContent=e.message;err.classList.add('show');
+  }).finally(function(){btn.disabled=false;btn.textContent='Get credits';});
+}
+
+function renderGetCredits(results){
+  var html='',cnt={dev:results.length,rc:0,sc:0,sched:0,none:0,err:0};
+  results.forEach(function(r){
+    if(r.error){
+      cnt.err++;
+      html+='<tr class="gc-dev"><td style="font-family:monospace;font-size:11px">'+escHtml(r.id)+'</td><td colspan="18" style="color:#fc8181">Error: '+escHtml(r.error)+'</td></tr>';
+      return;
+    }
+    var dv=r.device,rcs=r.rc||[],scs=r.sc||[];
+    if(rcs.length) cnt.rc++;
+    if(scs.length) cnt.sc++;
+    if(rcs.some(function(c){return c.state==='scheduled';})) cnt.sched++;
+    if(!rcs.length&&!scs.length&&!r.rc_error&&!r.sc_error) cnt.none++;
+    var devCells='<td style="font-family:monospace;font-size:11px">'+escHtml(r.id)+'</td><td>'+escHtml(dv.acct_id)+'</td><td>'+escHtml(dv.device_name)+'</td><td>'+escHtml(dv.inst_id)+'</td>'
+      +'<td>'+gcMoney(dv.amount)+'</td><td>'+gcMoney(dv.pos15)+'</td><td>'+escHtml(dv.frequency)+'</td>';
+    var subDev='<td style="font-family:monospace;font-size:11px" class="gc-dim">'+escHtml(r.id)+'</td><td class="gc-dim">'+escHtml(dv.acct_id)+'</td><td class="gc-dim">↳ '+escHtml(dv.device_name)+'</td><td class="gc-dim">'+escHtml(dv.inst_id)+'</td><td></td><td></td><td></td>';
+    function rcCells(c,showCount){
+      var b=GC_BADGE[c.state]||GC_BADGE.other;
+      return '<td>'+(showCount?'<b>'+rcs.length+'</b>':'')+'</td><td style="font-family:monospace;font-size:11px">'+escHtml(c.no||'—')+'</td>'
+        +'<td><span class="sb '+b[0]+'" title="'+escHtml(c.label)+'">'+escHtml(b[1]||c.label||'Unknown')+'</span></td>'
+        +'<td>'+gcMoney(c.amount)+'</td><td>'+gcDate(c.first_credit_date)+'</td><td>'+gcDate(c.next_credit_date)+'</td>'
+        +'<td>'+escHtml(c.credits_remaining!=null?c.credits_remaining:'—')+'</td><td>'+escHtml(c.comments||'')+'</td>';
+    }
+    var noRc;
+    if(r.rc_error) noRc='<td class="gc-dim">—</td><td class="gc-dim">—</td><td><span class="sb se" title="'+escHtml(r.rc_error)+'">RC error</span></td><td></td><td></td><td></td><td></td><td style="color:#fc8181">'+escHtml(r.rc_error)+'</td>';
+    else noRc='<td class="gc-dim">0</td><td class="gc-dim">—</td><td><span class="sb sl" title="Account has '+r.acct_rc_total+' RC(s); none active for this device">No credit</span></td><td class="gc-dim">—</td><td class="gc-dim">—</td><td class="gc-dim">—</td><td class="gc-dim">—</td><td></td>';
+    var scCells;
+    if(r.sc_error) scCells='<td class="gc-dim">—</td><td><span class="sb se" title="'+escHtml(r.sc_error)+'">SC error</span></td><td></td><td style="color:#fc8181">'+escHtml(r.sc_error)+'</td>';
+    else if(!scs.length) scCells='<td class="gc-dim">0</td><td class="gc-dim">—</td><td class="gc-dim">—</td><td></td>';
+    else{
+      var tot=scs.reduce(function(s,c){return s+(parseFloat(c.amount)||0);},0);
+      var cm=scs.map(function(c){return c.comments;}).filter(function(v,i,a){return v&&a.indexOf(v)===i;});
+      scCells='<td><b>'+scs.length+'</b></td><td style="font-family:monospace;font-size:11px">'+escHtml(scs.map(function(c){return c.no;}).join(', '))+'</td>'
+        +'<td>$'+tot.toFixed(2)+'</td><td>'+escHtml(cm.join(' ; '))+'</td>';
+    }
+    var emptySc='<td></td><td></td><td></td><td></td>';
+    html+='<tr class="gc-dev">'+devCells+(rcs.length?rcCells(rcs[0],true):noRc)+scCells+'</tr>';
+    rcs.slice(1).forEach(function(c){html+='<tr class="gc-sub">'+subDev+rcCells(c,false)+emptySc+'</tr>';});
+  });
+  document.getElementById('gc-tbody').innerHTML=html;
+  document.getElementById('gc-summary').innerHTML=
+    '<div class="scard">Devices <b>'+cnt.dev+'</b></div>'
+    +'<div class="scard">With RC <b style="color:#b794f4">'+cnt.rc+'</b></div>'
+    +'<div class="scard">With SC <b style="color:#4fd1c5">'+cnt.sc+'</b></div>'
+    +'<div class="scard">Scheduled RC <b style="color:#63b3ed">'+cnt.sched+'</b></div>'
+    +'<div class="scard">No credit <b>'+cnt.none+'</b></div>'
+    +'<div class="scard">Errors <b style="color:#fc8181">'+cnt.err+'</b></div>';
+  document.getElementById('gc-dlbtn').style.display='';
+}
+
+function downloadGetCreditsCSV(){
+  var t=snapTable('#gc-table');
+  function esc(v){return'"'+String(v).replace(/"/g,'""')+'"';}
+  var lines=[t.columns.map(esc).join(',')].concat(t.rows.map(function(r){return r.map(esc).join(',');}));
+  triggerDownload(lines.join('\n'),'aria_get_credits_'+todayStr()+'.csv');
+}
+
 function downloadCSV(pfx){
   var cs=bulkCallerStart[pfx];
   var rows=document.querySelectorAll('#'+pfx+'-btbody tr');
@@ -1210,7 +1321,7 @@ function downloadCSV(pfx){
     function esc(v){return'"'+String(v).replace(/"/g,'""')+'"';}
     lines.push([instId,dev?dev.acct_id:'',dev?dev.device_name:'',dev?'$'+dev.amount.toFixed(2):'',dev?(pfx==='s'?1:dev.frequency):'',dev?dev.svc_id:'',dev?(dev._creditId||''):'',dev?(dev._rcNo||''):'',dev?(dev._status||''):'',cs.caller,dev?(dev._usedStart||''):''].map(esc).join(','));
   });
-  triggerDownload(lines.join('\n'),'aria_credits_'+(pfx==='r'?'recurring':'service')+'_'+today+'.csv');
+  triggerDownload(lines.join('\n'),'aria_credits_'+(pfx==='r'?'recurring':'service')+'_'+todayStr()+'.csv');
 }
 
 function cancelSubmit(type){
@@ -1435,7 +1546,7 @@ function downloadDeviceStatusCSV(){
     var cmmt=document.getElementById('ds-cmmt-'+r.id);
     lines.push([r.id,d?d.client_acct_id:'N/A',d?d.client_plan_id:'N/A',d?d.status_label:'Error',d?d.status_date:'N/A',d?d.product_field_value:'',cmmt?cmmt.value:'',r.result||''].map(esc).join(','));
   });
-  triggerDownload(lines.join('\n'),'aria_device_status_'+today+'.csv');
+  triggerDownload(lines.join('\n'),'aria_device_status_'+todayStr()+'.csv');
 }
 
 function planStatusLookup(){
@@ -1621,7 +1732,7 @@ function downloadPlanCSV(){
       lines.push([d.msisdn,d.ban_can,d.account_status,d.master_plan_status,d.client_plan_instance_id,d.plan_name,d.plan_status,d.plan_status_date,d.child_plan1,d.child_client_plan1_id,d.child_plan1_status,d.child_start_date,d.child_end_date,d.inst_status,d.no_of_inst,d.no_of_active_inst,d.nso_exist,d.inst_string,multiWarn].map(esc).join(','));
     }
   });
-  triggerDownload(lines.join('\n'),'aria_plan_lookup_'+today+'.csv');
+  triggerDownload(lines.join('\n'),'aria_plan_lookup_'+todayStr()+'.csv');
 }
 
 var dcResults=[];
@@ -1829,7 +1940,7 @@ function downloadDCCSV(){
     var d=r.data;
     lines.push([r.id,d?d.account_status:'Error',d?'$'+parseFloat(d.current_balance_due||0).toFixed(2):'N/A',d?(d.dunning_process_id||'N/A'):'N/A',d?d.dunning_step:'N/A',r.targetStep!==null?r.targetStep:'N/A',d?(d.payment_plan||''):'',r.eligibility,r.result||'Pending'].map(esc).join(','));
   });
-  triggerDownload(lines.join('\n'),'aria_'+action+'_datafix_'+today+'.csv');
+  triggerDownload(lines.join('\n'),'aria_'+action+'_datafix_'+todayStr()+'.csv');
 }
 
 function downloadCancelCSV(type){
@@ -1841,7 +1952,7 @@ function downloadCancelCSV(type){
     function esc(v){return'"'+String(v).replace(/"/g,'""')+'"';}
     lines.push([r.acct,r.id,r.status,caller].map(esc).join(','));
   });
-  triggerDownload(lines.join('\n'),'aria_cancel_'+(type==='sc'?'service':'recurring')+'_'+today+'.csv');
+  triggerDownload(lines.join('\n'),'aria_cancel_'+(type==='sc'?'service':'recurring')+'_'+todayStr()+'.csv');
 }
 </script>
 </body>
