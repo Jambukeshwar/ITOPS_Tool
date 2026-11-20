@@ -6,8 +6,9 @@ import hashlib
 import secrets
 import json
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+from contextvars import ContextVar
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -57,26 +58,48 @@ SPECIAL_DUNNING = {
 }
 
 # ── DB ────────────────────────────────────────────────────────────────────────
+DEFAULT_ADMIN = ("aiops", "admin@123")   # created only when no admin exists — change the password after first login
+
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id       INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            role     TEXT NOT NULL DEFAULT 'user'
         )
     """)
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(users)")]
+    if "role" not in cols:   # migrate older DBs
+        conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
     conn.commit()
     return conn
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
+def ensure_default_admin():
+    conn = get_db()
+    if not conn.execute("SELECT 1 FROM users WHERE role = 'admin'").fetchone():
+        u, p = DEFAULT_ADMIN
+        conn.execute("INSERT OR REPLACE INTO users (username, password, role) VALUES (?, ?, 'admin')", (u, hash_password(p)))
+        conn.commit()
+    conn.close()
+
+ensure_default_admin()
+
 def verify_user(username: str, password: str) -> bool:
     conn = get_db()
     row = conn.execute("SELECT password FROM users WHERE username = ?", (username,)).fetchone()
     conn.close()
     return row is not None and row[0] == hash_password(password)
+
+def get_role(username: str) -> str:
+    conn = get_db()
+    row = conn.execute("SELECT role FROM users WHERE username = ?", (username,)).fetchone()
+    conn.close()
+    return row[0] if row else ""
 
 def get_session_db():
     conn = sqlite3.connect(DB_PATH)
@@ -108,14 +131,34 @@ def delete_session(token: str):
     conn.commit()
     conn.close()
 
-def require_auth(request: Request):
+# Logged-in user of the current request; post_aria uses it to build alt_caller_id = "username|comment"
+current_user: ContextVar[str] = ContextVar("current_user", default="")
+
+async def require_auth(request: Request):
+    # async (not def) so the ContextVar set here is visible to the route handler
     token = request.cookies.get("session_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     username = get_session_user(token)
-    if not username:
+    if not username or not get_role(username):   # removed users lose access immediately
         raise HTTPException(status_code=401, detail="Not authenticated")
+    current_user.set(username)
     return username
+
+async def require_admin(username: str = Depends(require_auth)):
+    if get_role(username) != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    return username
+
+def format_alt_caller(comment: str) -> str:
+    """'username|comment'. Strips a username| prefix the user typed so it isn't doubled."""
+    user = current_user.get()
+    c = (comment or "").strip()
+    if user and c.lower().startswith(user.lower() + "|"):
+        c = c[len(user) + 1:].strip()
+    if not c:
+        raise HTTPException(status_code=400, detail="Comment is required in Alt caller")
+    return f"{user}|{c}" if user else c
 
 RUNS_KEEP = 2  # runs kept per report, shared across all users
 
@@ -137,6 +180,8 @@ def get_runs_db():
 
 # ── Aria helpers ──────────────────────────────────────────────────────────────
 async def post_aria(payload: dict) -> dict:
+    if "alt_caller_id" in payload:
+        payload = {**payload, "alt_caller_id": format_alt_caller(payload["alt_caller_id"])}
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.post(ARIA_URL, json=payload)
@@ -252,7 +297,7 @@ async def login(req: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     token = secrets.token_hex(32)
     create_session(token, req.username)
-    resp = JSONResponse({"success": True, "username": req.username})
+    resp = JSONResponse({"success": True, "username": req.username, "role": get_role(req.username)})
     resp.set_cookie("session_token", token, httponly=True, samesite="lax")
     return resp
 
@@ -267,7 +312,70 @@ async def logout(request: Request):
 
 @app.get("/api/me")
 async def me(username: str = Depends(require_auth)):
-    return {"username": username}
+    return {"username": username, "role": get_role(username)}
+
+# ── Admin: user management ────────────────────────────────────────────────────
+class AdminUserRequest(BaseModel):
+    username: str
+    password: str = ""
+    role: str = "user"
+
+def _clean_username(u: str) -> str:
+    u = (u or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9._ -]{2,40}", u):
+        raise HTTPException(status_code=400, detail="Username: 2–40 letters, digits, space, . _ -")
+    return u
+
+def _check_password(p: str):
+    if len(p or "") < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+@app.get("/api/admin/users")
+async def admin_list_users(_=Depends(require_admin)):
+    conn = get_db()
+    rows = conn.execute("SELECT username, role FROM users ORDER BY role, username").fetchall()
+    conn.close()
+    return {"users": [{"username": r[0], "role": r[1]} for r in rows]}
+
+@app.post("/api/admin/users")
+async def admin_add_user(req: AdminUserRequest, _=Depends(require_admin)):
+    u = _clean_username(req.username)
+    _check_password(req.password)
+    if req.role not in ("user", "admin"):
+        raise HTTPException(status_code=400, detail="Role must be user or admin")
+    conn = get_db()
+    try:
+        conn.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (u, hash_password(req.password), req.role))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail=f"User '{u}' already exists")
+    finally:
+        conn.close()
+    return {"success": True}
+
+@app.post("/api/admin/users/password")
+async def admin_reset_password(req: AdminUserRequest, _=Depends(require_admin)):
+    _check_password(req.password)
+    conn = get_db()
+    n = conn.execute("UPDATE users SET password = ? WHERE username = ?", (hash_password(req.password), req.username)).rowcount
+    conn.commit(); conn.close()
+    if not n:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"success": True}
+
+@app.post("/api/admin/users/delete")
+async def admin_delete_user(req: AdminUserRequest, admin: str = Depends(require_admin)):
+    if req.username == admin:
+        raise HTTPException(status_code=400, detail="You cannot delete yourself")
+    conn = get_db()
+    n = conn.execute("DELETE FROM users WHERE username = ?", (req.username,)).rowcount
+    conn.commit(); conn.close()
+    if not n:
+        raise HTTPException(status_code=404, detail="User not found")
+    sconn = get_session_db()
+    sconn.execute("DELETE FROM sessions WHERE username = ?", (req.username,))
+    sconn.commit(); sconn.close()
+    return {"success": True}
 
 # ── Lookup ────────────────────────────────────────────────────────────────────
 @app.post("/api/lookup")
@@ -565,6 +673,67 @@ async def get_credits(req: GetCreditsRequest, _=Depends(require_auth)):
             "acct_rc_total": len(ac["rc"]), "acct_sc_total": len(ac["sc"]),
         })
     return {"results": results}
+
+# ── MPI status (master plan instance = BAN) ───────────────────────────────────
+class MpiUpdateRequest(BaseModel):
+    client_acct_id: str
+    action: str          # "activate" | "suspend"
+    alt_caller_id: str
+
+def _ast_today():
+    """Today in AST (Puerto Rico, UTC-4, no DST)."""
+    return datetime.now(timezone(timedelta(hours=-4))).date()
+
+async def _mpi_info(uid: str) -> dict:
+    data = await post_aria({**base_payload(), "rest_call": "get_acct_details_all_m",
+        "client_acct_id": uid, "include_master_plans": "1",
+        "include_supp_plans": "0", "include_billing_groups": "0",
+        "include_payment_methods": "0"})
+    if data.get("error_code") not in (0, "0"):
+        raise HTTPException(status_code=400, detail=data.get("error_msg") or "Account lookup failed")
+    plans = data.get("master_plans_info") or []
+    plan = next((p for p in plans if uid in (p.get("client_master_plan_instance_id"), p.get("client_plan_instance_id"))), None)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Master plan instance not found for this BAN")
+    nbd = _parse_dt(plan.get("next_bill_date"))
+    past = nbd != datetime.min and nbd.date() < _ast_today()
+    return {
+        "client_acct_id":     uid,
+        "account_status":     "Active" if data.get("status_cd") == 1 else "Not-Active",
+        "mpi_status_cd":      plan.get("master_plan_instance_status"),
+        "mpi_status":         plan.get("mp_instance_status_label") or str(plan.get("master_plan_instance_status")),
+        "next_bill_date":     plan.get("next_bill_date"),
+        "last_bill_date":     plan.get("last_bill_date"),
+        "bill_day":           plan.get("bill_day"),
+        "status_date":        plan.get("status_date"),
+        "dunning_process_id": plan.get("client_dunning_process_id"),
+        "dunning_state":      plan.get("dunning_state"),
+        "dunning_step":       plan.get("dunning_step"),
+        "bill_date_past":     past,
+        "force_bill_date_reset": 2 if past else 0,   # used on Activate
+    }
+
+@app.post("/api/mpi-lookup")
+async def mpi_lookup(req: AccountDetailsRequest, _=Depends(require_auth)):
+    return await _mpi_info(req.client_acct_id.strip())
+
+@app.post("/api/mpi-update")
+async def mpi_update(req: MpiUpdateRequest, _=Depends(require_auth)):
+    uid = req.client_acct_id.strip()
+    payload = {**base_payload(), "rest_call": "update_acct_plan_status_m",
+               "client_acct_id": uid, "client_plan_instance_id": uid,
+               "alt_caller_id": req.alt_caller_id}
+    if req.action == "activate":
+        info = await _mpi_info(uid)   # re-check the bill date at execution time
+        payload.update({"status_cd": 1, "dunning_state": 0,
+                        "force_bill_date_reset": info["force_bill_date_reset"]})
+    elif req.action == "suspend":
+        payload.update({"status_cd": -1, "force_bill_date_reset": 0})
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")
+    res = await post_aria(payload)
+    res["force_bill_date_reset"] = payload["force_bill_date_reset"]
+    return res
 
 # ── Next bill date (default credit start date) ────────────────────────────────
 @app.post("/api/next-bill-date")

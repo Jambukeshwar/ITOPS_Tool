@@ -77,6 +77,9 @@ tr.selected-row td{background:#1a2a1a !important}
 .sp{background:#1e2a3a;color:#63b3ed}.so{background:#1c3a2a;color:#68d391}
 .se{background:#2d1a1a;color:#fc8181}.sw{background:#2d1a00;color:#f6ad55}
 .sl{background:#2d3748;color:#a0aec0}
+.caller-wrap{display:flex;align-items:stretch;width:100%}
+.caller-wrap input{border-top-left-radius:0!important;border-bottom-left-radius:0!important;flex:1;min-width:0}
+.caller-prefix{display:flex;align-items:center;padding:0 10px;background:#2d3748;color:#63b3ed;border:0.5px solid #2d3748;border-right:none;border-radius:8px 0 0 8px;font-size:12px;font-weight:600;font-family:monospace;white-space:nowrap}
 th.gc-rc{color:#b794f4;background:#1c1830}th.gc-sc{color:#4fd1c5;background:#132626}
 tr.gc-dev td{border-top:0.5px solid #2d3748}tr.gc-sub td{background:#121a26}
 .gc-dim{color:#4a5568}
@@ -136,22 +139,82 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a73e8}
   </div>
   <div class="nav">
     <button class="nav-tab" onclick="switchPage('plan',this)">Plan Lookup</button>
-    <button class="nav-tab" onclick="switchPage('device',this)">Device manage</button>
+    <button class="nav-tab" onclick="switchPage('device',this)">Instance manager</button>
     <button class="nav-tab active" onclick="switchPage('credit',this)">Credit manage</button>
     <button class="nav-tab" onclick="switchPage('account',this)">Account details</button>
+    <button class="nav-tab" id="nav-admin" style="display:none" onclick="switchPage('admin',this);adminLoadUsers()">Admin</button>
   </div>
   <div class="pages">
+
+    <!-- ADMIN PAGE (admin role only; server enforces) -->
+    <div class="page" id="page-admin">
+      <div class="card">
+        <div class="slabel">Add user</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 140px auto;gap:10px;align-items:end">
+          <div class="field" style="margin:0"><label>Username</label><input id="adm-user" placeholder="e.g. jambu" autocomplete="off"></div>
+          <div class="field" style="margin:0"><label>Password</label><input id="adm-pass" type="password" placeholder="min 6 characters" autocomplete="new-password"></div>
+          <div class="field" style="margin:0"><label>Role</label>
+            <select id="adm-role" style="width:100%;background:#0f1117;border:0.5px solid #2d3748;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:13px">
+              <option value="user">User</option><option value="admin">Admin</option></select></div>
+          <button class="lbtn" onclick="adminAddUser()" style="background:#1a73e8">Add user</button>
+        </div>
+        <div class="rbox" id="adm-res"></div>
+      </div>
+      <div class="card">
+        <div class="slabel">Users</div>
+        <div class="bwrap"><table><thead><tr><th>Username</th><th>Role</th><th style="width:320px">Actions</th></tr></thead><tbody id="adm-tbody"></tbody></table></div>
+      </div>
+    </div>
 
     <!-- DEVICE MANAGE PAGE -->
     <div class="page" id="page-device">
       <div style="display:flex;gap:4px;margin-bottom:1.5rem;background:#1a202c;border-radius:10px;padding:4px">
-        <button class="mtgl active" style="flex:1;padding:10px;font-size:13px" onclick="switchDeviceTab('plan',this)">Plan Status</button>
+        <button class="mtgl active" style="flex:1;padding:10px;font-size:13px" onclick="switchDeviceTab('mpi',this)">MPI Status</button>
+        <button class="mtgl" style="flex:1;padding:10px;font-size:13px" onclick="switchDeviceTab('plan',this)">Plan Status</button>
         <button class="mtgl" style="flex:1;padding:10px;font-size:13px" onclick="switchDeviceTab('device',this)">Device Status</button>
         <button class="mtgl" style="flex:1;padding:10px;font-size:13px" onclick="switchDeviceTab('nso',this)">NSO</button>
       </div>
 
+      <!-- MPI Status Tab (master plan instance = BAN) -->
+      <div id="dt-mpi">
+        <div class="card">
+          <div class="slabel">MPI Status</div>
+          <div class="field"><label>BANs (one per line)</label><textarea id="mp-ids" rows="4" placeholder="23896530-23892384"></textarea></div>
+          <button class="lbtn" id="mp-lbtn" onclick="mpiLookup()" style="width:100%;height:auto;padding:10px">Look up all</button>
+        </div>
+        <div id="mp-table" style="display:none">
+          <div class="bsum" id="mp-bsum"></div>
+          <div class="sel-bar">
+            <div class="sel-bar-row">
+              <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:#a0aec0;cursor:pointer">
+                <input type="checkbox" id="mp-chk-all" onchange="mpToggleAll(this.checked)"> Select all
+              </label>
+              <span class="sel-count" id="mp-sel-count">0 selected</span>
+            </div>
+            <div class="sel-bar-row">
+              <div class="field" style="margin:0;min-width:260px">
+                <input id="mp-caller" placeholder="Alt caller / ticket (required)" style="padding:6px 10px;font-size:12px">
+              </div>
+              <button class="action-btn" style="background:#276749;color:#fff" id="mp-btn-activate" onclick="mpApply('activate')" disabled title="status_cd=1, dunning_state=0, force_bill_date_reset = 2 if next bill date is past, else 0">Activate</button>
+              <button class="action-btn" style="background:#c05621;color:#fff" id="mp-btn-suspend" onclick="mpApply('suspend')" disabled title="status_cd=-1, force_bill_date_reset=0">Suspend</button>
+            </div>
+          </div>
+          <div class="bwrap">
+            <table>
+              <thead><tr>
+                <th style="width:32px"></th><th>BAN</th><th>Account Status</th><th>MPI Status</th><th>Next Bill Date</th>
+                <th>Bill Date Reset</th><th>Last Bill Date</th><th>Status Date</th><th>Dunning Process</th><th>Dunning State/Step</th><th>Result</th>
+              </tr></thead>
+              <tbody id="mp-tbody"></tbody>
+            </table>
+          </div>
+          <div class="rbox" id="mp-res"></div>
+        </div>
+        <div class="hist" id="hist-mp"></div>
+      </div>
+
       <!-- Plan Status Tab -->
-      <div id="dt-plan">
+      <div id="dt-plan" style="display:none">
         <div class="card">
           <div class="slabel">Plan Status</div>
           <div class="field"><label>Client Plan Instance IDs (one per line)</label><textarea id="ps-ids" rows="4" placeholder="8024X00000BxUbvQAF&#10;8024X00000CgcSyQAJ"></textarea></div>
@@ -608,7 +671,7 @@ var SPECIAL_DUNNING = ["Dunning_process_manual_cancelation","Dunning_process_Pay
 window.addEventListener('DOMContentLoaded',function(){
   fetch(API+'/api/me',{credentials:'include'}).then(function(r){
     if(r.ok) return r.json(); throw new Error('not logged in');
-  }).then(function(d){showApp(d.username);})
+  }).then(function(d){showApp(d.username,d.role);})
   .catch(function(){document.getElementById('login-wrap').style.display='flex';});
   document.getElementById('login-pass').addEventListener('keydown',function(e){if(e.key==='Enter') doLogin();});
 });
@@ -623,17 +686,84 @@ function doLogin(){
   .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
   .then(function(res){
     if(!res.ok){showLoginErr(res.d.detail||'Login failed.');btn.disabled=false;btn.textContent='Sign in';return;}
-    showApp(res.d.username);
+    showApp(res.d.username,res.d.role);
   }).catch(function(e){showLoginErr(e.message);btn.disabled=false;btn.textContent='Sign in';});
 }
 
 function showLoginErr(msg){var el=document.getElementById('login-err');el.textContent=msg;el.style.display='block';}
 
-function showApp(username){
+var currentUser='',currentRole='';
+function showApp(username,role){
+  currentUser=username;currentRole=role||'user';
   document.getElementById('login-wrap').style.display='none';
   document.getElementById('app-shell').style.display='flex';
-  document.getElementById('topbar-username').textContent=username;
+  document.getElementById('topbar-username').textContent=username+(currentRole==='admin'?' (admin)':'');
+  var isAdmin=currentRole==='admin';
+  document.getElementById('nav-admin').style.display=isAdmin?'':'none';
+  if(!isAdmin&&document.getElementById('page-admin').classList.contains('active'))
+    document.querySelector('.nav-tab[onclick*="\'credit\'"]').click();
+  decorateCallers();
   loadRuns();
+}
+
+// Alt caller boxes: show a fixed "username|" prefix; the user types only the comment.
+// The server builds the final alt_caller_id = username|comment.
+function decorateCallers(){
+  document.querySelectorAll('input[id$="caller"]').forEach(function(inp){
+    var pre=document.getElementById(inp.id+'-prefix');
+    if(!pre){
+      var wrap=document.createElement('div');
+      wrap.className='caller-wrap';
+      inp.parentNode.insertBefore(wrap,inp);
+      pre=document.createElement('span');
+      pre.className='caller-prefix';pre.id=inp.id+'-prefix';
+      wrap.appendChild(pre);wrap.appendChild(inp);
+      inp.placeholder='Comment / ticket (required)';
+      inp.addEventListener('input',function(){   // don't let the user retype their own name
+        var p=currentUser+'|';
+        if(inp.value.toLowerCase().indexOf(p.toLowerCase())===0) inp.value=inp.value.slice(p.length);
+      });
+    }
+    pre.textContent=currentUser+'|';
+    pre.title='Alt caller is sent as '+currentUser+'|<your comment>';
+  });
+}
+
+// ── Admin: user management ───────────────────────────────────────────────────
+function adminMsg(ok,msg){var el=document.getElementById('adm-res');el.className='rbox '+(ok?'ok':'err');el.style.display='block';el.textContent=msg;}
+function adminLoadUsers(){
+  fetch(API+'/api/admin/users',{credentials:'include'})
+  .then(function(r){if(r.status===401){doLogout();throw new Error('Session expired.');}return r.json().then(function(d){if(!r.ok) throw new Error(d.detail||'Error');return d;});})
+  .then(function(d){
+    document.getElementById('adm-tbody').innerHTML=d.users.map(function(u){
+      var me=u.username===currentUser;
+      return '<tr><td>'+escHtml(u.username)+(me?' <span class="sb sp">you</span>':'')+'</td>'
+        +'<td><span class="sb '+(u.role==='admin'?'sw':'sl')+'">'+escHtml(u.role)+'</span></td>'
+        +'<td><button class="action-btn hist-btn" data-u="'+escHtml(u.username)+'" onclick="adminResetPw(this.dataset.u)">Reset password</button> '
+        +(me?'':'<button class="action-btn" style="background:#742a2a;color:#fff;padding:4px 12px" data-u="'+escHtml(u.username)+'" onclick="adminDelete(this.dataset.u)">Delete</button>')
+        +'</td></tr>';
+    }).join('');
+  }).catch(function(e){adminMsg(false,e.message);});
+}
+function adminAddUser(){
+  var u=document.getElementById('adm-user').value.trim(),p=document.getElementById('adm-pass').value,role=document.getElementById('adm-role').value;
+  if(!u||!p){adminMsg(false,'Enter username and password.');return;}
+  apiFetch('/api/admin/users',{username:u,password:p,role:role}).then(function(){
+    adminMsg(true,'User '+u+' added ('+role+').');
+    document.getElementById('adm-user').value='';document.getElementById('adm-pass').value='';
+    adminLoadUsers();
+  }).catch(function(e){adminMsg(false,e.message);});
+}
+function adminResetPw(u){
+  var p=prompt('New password for '+u+' (min 6 characters):');
+  if(!p) return;
+  apiFetch('/api/admin/users/password',{username:u,password:p}).then(function(){adminMsg(true,'Password updated for '+u+'.');})
+  .catch(function(e){adminMsg(false,e.message);});
+}
+function adminDelete(u){
+  if(!confirm('Delete user '+u+'? They will be logged out.')) return;
+  apiFetch('/api/admin/users/delete',{username:u}).then(function(){adminMsg(true,'User '+u+' deleted.');adminLoadUsers();})
+  .catch(function(e){adminMsg(false,e.message);});
 }
 
 function doLogout(){
@@ -705,7 +835,7 @@ function triggerDownload(content,filename){
 var runIds={};      // report -> Promise<run id> of this browser's latest run
 var runCache={};    // run id -> run
 var runOpen={};     // run id -> true when its table is expanded
-var RUN_REPORTS=['acct','dc','ps','ds','r','s','sc','rc','gc'];
+var RUN_REPORTS=['acct','dc','mp','ps','ds','r','s','sc','rc','gc'];
 
 function escHtml(v){return String(v===null||v===undefined?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
@@ -1373,9 +1503,123 @@ function cancelSubmit(type){
 }
 
 function switchDeviceTab(name,btn){
-  ['plan','device','nso'].forEach(function(n){document.getElementById('dt-'+n).style.display=n===name?'block':'none';});
+  ['mpi','plan','device','nso'].forEach(function(n){document.getElementById('dt-'+n).style.display=n===name?'block':'none';});
   btn.parentElement.querySelectorAll('.mtgl').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
+}
+
+// ── MPI Status (BAN = master plan instance) ──────────────────────────────────
+var mpResults={};
+var mpSelected=new Set();
+function mpKey(id){return id.replace(/[^A-Za-z0-9_-]/g,'_');}
+
+function mpUpdateSelBar(){
+  var n=mpSelected.size;
+  document.getElementById('mp-sel-count').textContent=n+' selected';
+  document.getElementById('mp-btn-activate').disabled=n===0;
+  document.getElementById('mp-btn-suspend').disabled=n===0;
+}
+function mpToggleAll(checked){
+  mpSelected.clear();
+  document.querySelectorAll('.mp-row-chk').forEach(function(chk){chk.checked=checked;if(checked) mpSelected.add(chk.dataset.id);});
+  mpUpdateSelBar();
+}
+function mpToggleRow(id,checked){
+  if(checked) mpSelected.add(id); else mpSelected.delete(id);
+  mpUpdateSelBar();
+}
+function mpStatusColor(s){return s==='Active'?'#68d391':/suspend/i.test(s||'')?'#f6ad55':/cancel|terminat/i.test(s||'')?'#fc8181':'#a0aec0';}
+
+function mpRenderRow(id,d){
+  var tr=document.getElementById('mp-row-'+mpKey(id));
+  if(!tr) return;
+  var ds=d.dunning_state==0?'None':d.dunning_state==1?'In Progress':d.dunning_state==2?'Completed':(d.dunning_state==null?'N/A':d.dunning_state);
+  tr.innerHTML='<td><input type="checkbox" class="mp-row-chk" data-id="'+escHtml(id)+'" onchange="mpToggleRow(this.dataset.id,this.checked)"></td>'
+    +'<td style="font-family:monospace;font-size:11px">'+escHtml(id)+'</td>'
+    +'<td style="color:'+(d.account_status==='Active'?'#68d391':'#fc8181')+'">'+escHtml(d.account_status)+'</td>'
+    +'<td style="color:'+mpStatusColor(d.mpi_status)+';font-weight:500">'+escHtml(d.mpi_status||'N/A')+'</td>'
+    +'<td style="font-size:11px">'+escHtml(d.next_bill_date||'N/A')+'</td>'
+    +'<td style="font-size:11px">'+(d.bill_date_past?'<span class="sb sw">Past → 2</span>':'<span class="sb sp">Future → 0</span>')+'</td>'
+    +'<td style="font-size:11px">'+escHtml(d.last_bill_date||'N/A')+'</td>'
+    +'<td style="font-size:11px">'+escHtml(d.status_date||'N/A')+'</td>'
+    +'<td style="font-size:11px">'+escHtml(d.dunning_process_id||'N/A')+'</td>'
+    +'<td style="font-size:11px">'+escHtml(ds)+(d.dunning_step!=null?' / '+escHtml(d.dunning_step):'')+'</td>'
+    +'<td class="mp-result" id="mp-res-'+mpKey(id)+'"><span class="sb sl">—</span></td>';
+}
+
+function mpiLookup(){
+  var ids=document.getElementById('mp-ids').value.split('\n').map(function(s){return s.trim();}).filter(function(v,i,a){return v&&a.indexOf(v)===i;});
+  if(!ids.length) return;
+  var btn=document.getElementById('mp-lbtn');
+  btn.disabled=true;btn.textContent='Looking up...';
+  mpResults={};mpSelected.clear();
+  document.getElementById('mp-chk-all').checked=false;
+  mpUpdateSelBar();
+  var tbody=document.getElementById('mp-tbody');
+  tbody.innerHTML='';
+  document.getElementById('mp-table').style.display='block';
+  document.getElementById('mp-res').style.display='none';
+  ids.forEach(function(id){
+    var tr=document.createElement('tr');tr.id='mp-row-'+mpKey(id);
+    tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+escHtml(id)+'</td><td colspan="9"><span class="sb sl">Loading...</span></td>';
+    tbody.appendChild(tr);
+  });
+  var total=ids.length,ok=0,err=0,done=0,idx=0;
+  function updateSum(){document.getElementById('mp-bsum').innerHTML='<div class="scard"><span>'+total+'</span>Total</div><div class="scard"><span style="color:#68d391">'+ok+'</span>Ready</div><div class="scard"><span style="color:#fc8181">'+err+'</span>Errors</div>';}
+  updateSum();
+  function runNext(){
+    if(idx>=ids.length) return;
+    var id=ids[idx++];
+    apiFetch('/api/mpi-lookup',{client_acct_id:id})
+    .then(function(d){mpResults[id]=d;mpRenderRow(id,d);ok++;})
+    .catch(function(e){
+      var tr=document.getElementById('mp-row-'+mpKey(id));
+      if(tr) tr.innerHTML='<td></td><td style="font-family:monospace;font-size:11px">'+escHtml(id)+'</td><td colspan="9" style="color:#fc8181">'+escHtml(e.message)+'</td>';
+      err++;
+    })
+    .finally(function(){
+      done++;updateSum();
+      if(done===total){btn.disabled=false;btn.textContent='Look up all';saveRun('mp','MPI Status lookup',snapTable('#mp-table table'));}
+      runNext();
+    });
+  }
+  for(var i=0;i<Math.min(3,ids.length);i++) runNext();
+}
+
+function mpApply(action){
+  if(mpSelected.size===0) return;
+  var caller=document.getElementById('mp-caller').value.trim();
+  if(!caller){alert('Enter an alt caller / ticket first.');return;}
+  var labels={activate:'Activate',suspend:'Suspend'};
+  if(!confirm(labels[action]+' MPI on '+mpSelected.size+' selected BAN(s)?')) return;
+  var toProcess=Array.from(mpSelected).filter(function(id){return mpResults[id];});
+  if(!toProcess.length) return;
+  var success=0,failed=0,done=0,idx=0;
+  document.getElementById('mp-btn-activate').disabled=true;
+  document.getElementById('mp-btn-suspend').disabled=true;
+  function cell(id){return document.getElementById('mp-res-'+mpKey(id));}
+  function runNext(){
+    if(idx>=toProcess.length) return;
+    var id=toProcess[idx++];
+    var c=cell(id);if(c) c.innerHTML='<span class="sb sp">Running...</span>';
+    apiFetch('/api/mpi-update',{client_acct_id:id,action:action,alt_caller_id:caller})
+    .then(function(r){
+      var ok=r.error_code===0||r.error_code==='0';
+      ok?success++:failed++;
+      if(c) c.innerHTML='<span class="sb '+(ok?'so':'se')+'" title="force_bill_date_reset='+escHtml(r.force_bill_date_reset)+'">'+(ok?labels[action]+' Done':escHtml(r.error_msg||'Error'))+'</span>';
+    })
+    .catch(function(e){failed++;if(c) c.innerHTML='<span class="sb se">'+escHtml(e.message)+'</span>';})
+    .finally(function(){
+      done++;
+      if(done===toProcess.length){
+        mpUpdateSelBar();
+        showResult('mp-res',failed===0,success+' applied'+(failed?', '+failed+' failed.':'.'),{success:success,failed:failed});
+        saveRun('mp','MPI Status + '+labels[action]+' · '+caller,snapTable('#mp-table table'),true);
+      }
+      runNext();
+    });
+  }
+  for(var i=0;i<Math.min(3,toProcess.length);i++) runNext();
 }
 
 var psResults=[];

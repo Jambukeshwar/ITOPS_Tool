@@ -32,11 +32,16 @@ pip install -r requirements.txt
 ```
 
 ### User management
+Roles: `admin` and `user`. Admins manage users in the **Admin** tab (`/api/admin/users*`, guarded by `require_admin`). If no admin exists at startup, `aiops` / `admin@123` is created — change its password.
 ```bash
-python create_user.py add <username> <password>
+python create_user.py add <username> <password> [user|admin]
 python create_user.py remove <username>
+python create_user.py passwd <username> <new_password>
 python create_user.py list
 ```
+
+### Alt caller
+Every Aria call's `alt_caller_id` is rewritten in `post_aria` to `<logged-in username>|<comment>` (`format_alt_caller`, user taken from the `current_user` ContextVar set by the async `require_auth`). An empty comment is rejected with 400. The UI shows a fixed `username|` prefix on every `*-caller` input (`decorateCallers()`).
 
 ### Deploy to server
 ```bash
@@ -102,6 +107,8 @@ All routes require session cookie auth except `/api/login`.
 | POST | `/api/bulk-cancel-service-credit` | Bulk cancel service credits |
 | POST | `/api/bulk-cancel-recurring-credit` | Bulk cancel recurring credits |
 | POST | `/api/get-credits` | `{ids:[client_plan_instance_id]}` → device details + matching RCs (`get_recurring_credit_info_m`, cancelled dropped) and unapplied SCs (`get_unapplied_service_credits_m`); RC/SC fetched once per BAN. Credits matched by `client_plan_instance_id` (RC: `recurring_credits_details[].eligible_plan_instance_details[].client_plan_instance_id`) |
+| POST | `/api/mpi-lookup` | MPI (BAN) status, next bill date, dunning from `get_acct_details_all_m` |
+| POST | `/api/mpi-update` | `update_acct_plan_status_m` on MPI=BAN. activate: `status_cd=1, dunning_state=0, force_bill_date_reset` = 2 if MPI next_bill_date < today AST else 0 (re-checked at execution). suspend: `status_cd=-1, force_bill_date_reset=0` |
 | POST | `/api/account-details` | Account balance, payment history, dunning info |
 | POST | `/api/bulk-account-details` | Bulk account details (concurrency 3 via `asyncio.Semaphore`) |
 | POST | `/api/update-dunning` | Suspend or disconnect — looks up step from `DUNNING_STEPS` |
